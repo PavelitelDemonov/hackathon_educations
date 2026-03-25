@@ -1,1 +1,1 @@
-# -hackathon_educations
+# hackathon_educations
