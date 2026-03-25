@@ -16,9 +16,9 @@ docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createsuperuser
 
 Открой: http://localhost:8000/admin
-
-local:
-
+```
+## local:
+```
 # 1. Создай виртуальное окружение
 python -m venv .venv
 
