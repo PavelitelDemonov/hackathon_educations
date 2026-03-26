@@ -219,6 +219,8 @@ body {
 .courses-grid {
     display: flex;
     flex-wrap: nowrap;
+    justify-content: center;
+    align-items: stretch;
     gap: 22px;
     overflow-x: auto;
     overflow-y: hidden;
@@ -247,6 +249,8 @@ body {
     flex: 0 0 290px;
     min-width: 290px;
     scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
     background: linear-gradient(165deg, var(--surface) 0%, var(--surface-soft) 100%);
     border: 2px solid var(--line);
     border-radius: var(--radius-lg);
@@ -298,6 +302,7 @@ body {
 }
 
 .course-emoji {
+    align-self: center;
     width: 96px;
     height: 96px;
     object-fit: contain;
@@ -324,6 +329,7 @@ body {
 
 .course-level {
     display: inline-block;
+    align-self: center;
     margin-bottom: 14px;
     padding: 8px 14px;
     border-radius: 999px;
@@ -336,6 +342,7 @@ body {
 
 .btn-course-main {
     width: 100%;
+    margin-top: auto;
     color: #fff;
     background: linear-gradient(135deg, var(--cta-1) 0%, var(--cta-2) 100%);
     box-shadow: 0 8px 16px rgba(15, 140, 255, 0.24);
@@ -397,6 +404,171 @@ body {
     text-align: center;
     color: #3d4d73;
     font-weight: 700;
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+.auth-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+}
+
+.auth-modal.is-open {
+    display: flex;
+}
+
+.auth-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(14, 24, 54, 0.45);
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+}
+
+.auth-modal__card {
+    position: relative;
+    width: min(92vw, 430px);
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    border-radius: 28px;
+    background: #ececec;
+    padding: 22px 22px 24px;
+    box-shadow: 0 18px 45px rgba(22, 36, 82, 0.34);
+}
+
+.auth-modal__close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #34435d;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.auth-modal__tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0 16px;
+}
+
+.auth-modal__tab {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    padding: 9px 12px;
+    font-family: "Nunito", "Trebuchet MS", sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    color: #485574;
+    background: #f6f6f6;
+    cursor: pointer;
+}
+
+.auth-modal__tab.is-active {
+    border-color: rgba(63, 161, 212, 0.45);
+    color: #15455f;
+    background: #def3fb;
+}
+
+.auth-modal__form {
+    display: none;
+}
+
+.auth-modal__form.is-active {
+    display: block;
+}
+
+.auth-modal__title {
+    text-align: center;
+    font-size: clamp(2rem, 4.7vw, 3rem);
+    line-height: 1.05;
+    margin: 6px 0 20px;
+    font-weight: 900;
+}
+
+.auth-modal__label {
+    display: block;
+    margin: 0 0 6px 8px;
+    font-size: 1rem;
+    font-style: italic;
+    color: #1e2436;
+}
+
+.auth-modal__input {
+    width: 100%;
+    height: 42px;
+    border-radius: 999px;
+    border: 2px solid #c9c9c9;
+    background: #f3f3f3;
+    padding: 0 14px;
+    margin-bottom: 14px;
+    font-size: 15px;
+}
+
+.auth-modal__input:focus {
+    outline: none;
+    border-color: #79cae6;
+    box-shadow: 0 0 0 3px rgba(84, 200, 235, 0.25);
+}
+
+.auth-modal__link {
+    display: inline-block;
+    margin: -4px 0 2px 10px;
+    font-size: 13px;
+    color: #7f8ad2;
+}
+
+.auth-modal__message {
+    min-height: 20px;
+    text-align: center;
+    margin: 12px 0 8px;
+    font-size: 14px;
+    color: transparent;
+}
+
+.auth-modal__message.is-error {
+    color: #f27063;
+}
+
+.auth-modal__message.is-success {
+    color: #2a9d63;
+}
+
+.auth-modal__submit {
+    display: block;
+    width: min(100%, 230px);
+    margin: 8px auto 0;
+    border: none;
+    border-radius: 999px;
+    padding: 11px 14px;
+    min-height: 50px;
+    font-family: "Nunito", "Trebuchet MS", sans-serif;
+    font-size: 30px;
+    font-style: italic;
+    font-weight: 800;
+    color: #0f2f3c;
+    background: linear-gradient(135deg, #54c8eb 0%, #40bae2 100%);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+}
+
+.auth-modal__submit:hover {
+    transform: translateY(-1px);
 }
 
 @keyframes pulseHero {
@@ -468,6 +640,7 @@ body {
     }
 
     .courses-grid {
+        justify-content: flex-start;
         gap: 16px;
     }
 
@@ -570,6 +743,20 @@ body {
         width: 100%;
         max-width: 320px;
         font-size: 17px;
+    }
+
+    .auth-modal {
+        padding: 10px;
+    }
+
+    .auth-modal__card {
+        border-radius: 22px;
+        padding: 16px 14px 18px;
+    }
+
+    .auth-modal__submit {
+        min-height: 46px;
+        font-size: 25px;
     }
 }
 

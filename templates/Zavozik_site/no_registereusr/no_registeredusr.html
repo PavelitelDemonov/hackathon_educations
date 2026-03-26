@@ -47,7 +47,7 @@
                     <div class="course-card-main">
                         <img src="images/python.png" alt="Python" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">Python</h3>
-                        <p class="course-desc">Легкий старт: анимации, игры и чат-боты</p>
+                        <p class="course-desc">Легкий старт</p>
                         <div class="course-level">Возраст 7-11</div>
                         <button class="btn btn-course-main">Начать курс</button>
                     </div>
@@ -56,7 +56,7 @@
                     <div class="course-card-main">
                         <img src="images/java.png" alt="Java" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">Java</h3>
-                        <p class="course-desc">Создавай приложения и мини-игры как профи</p>
+                        <p class="course-desc">Создавай приложения</p>
                         <div class="course-level">Возраст 10-13</div>
                         <button class="btn btn-course-main">Начать курс</button>
                     </div>
@@ -65,7 +65,7 @@
                     <div class="course-card-main">
                         <img src="images/С++.png" alt="C++" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">C&#43;&#43;</h3>
-                        <p class="course-desc">Прокачай логику и собирай быстрые проекты</p>
+                        <p class="course-desc">Прокачай логику</p>
                         <div class="course-level">Возраст 12-15</div>
                         <button class="btn btn-course-main">Начать курс</button>
                     </div>
@@ -89,6 +89,55 @@
             <p>&copy; 2026 Завозик. Все права защищены.</p>
         </div>
     </footer>
+
+    <div class="auth-modal" id="auth-modal" aria-hidden="true">
+        <button class="auth-modal__backdrop" type="button" data-close-auth aria-label="Закрыть окно входа"></button>
+
+        <section class="auth-modal__card" role="dialog" aria-modal="true" aria-label="Окно входа и регистрации">
+            <button class="auth-modal__close" type="button" data-close-auth aria-label="Закрыть">×</button>
+
+            <div class="auth-modal__tabs">
+                <button class="auth-modal__tab is-active" type="button" data-auth-tab="login">Вход</button>
+                <button class="auth-modal__tab" type="button" data-auth-tab="register">Регистрация</button>
+            </div>
+
+            <form class="auth-modal__form is-active" data-auth-panel="login" autocomplete="on">
+                <h2 class="auth-modal__title">Вход в аккаунт</h2>
+
+                <label class="auth-modal__label" for="modal-login-email">Электронная почта</label>
+                <input class="auth-modal__input" id="modal-login-email" type="email" placeholder="example@mail.ru" required>
+
+                <label class="auth-modal__label" for="modal-login-password">Пароль</label>
+                <input class="auth-modal__input" id="modal-login-password" type="password" placeholder="Введите пароль" required>
+
+                <a class="auth-modal__link" href="#" data-forgot-password>Забыли пароль?</a>
+
+                <p class="auth-modal__message" id="modal-login-message"></p>
+
+                <button class="auth-modal__submit" type="submit">Вход</button>
+            </form>
+
+            <form class="auth-modal__form" data-auth-panel="register" autocomplete="on">
+                <h2 class="auth-modal__title">Создание аккаунта</h2>
+
+                <label class="auth-modal__label" for="modal-register-nickname">Никнейм</label>
+                <input class="auth-modal__input" id="modal-register-nickname" type="text" minlength="3" maxlength="25" placeholder="Твой ник" required>
+
+                <label class="auth-modal__label" for="modal-register-email">Электронная почта</label>
+                <input class="auth-modal__input" id="modal-register-email" type="email" placeholder="example@mail.ru" required>
+
+                <label class="auth-modal__label" for="modal-register-password">Пароль</label>
+                <input class="auth-modal__input" id="modal-register-password" type="password" minlength="6" placeholder="Не менее 6 символов" required>
+
+                <label class="auth-modal__label" for="modal-register-password-repeat">Подтверждение пароля</label>
+                <input class="auth-modal__input" id="modal-register-password-repeat" type="password" minlength="6" placeholder="Повтори пароль" required>
+
+                <p class="auth-modal__message" id="modal-register-message"></p>
+
+                <button class="auth-modal__submit" type="submit">Создать аккаунт</button>
+            </form>
+        </section>
+    </div>
 
     <script src="script_nousr.js"></script>
 </body>
