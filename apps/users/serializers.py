@@ -11,9 +11,6 @@ class RegisterSerializers(serializers.ModelSerializer):
         model = User
         fields = ['username', 'password', 'password_confirm', 'role'] 
     
-    def create(self, validated_data):
-       return User.objects.create_user(**validated_data)
-    
     def validate_role(self, value):
         allowed_roles = ['student', 'parent']
         if value not in allowed_roles:

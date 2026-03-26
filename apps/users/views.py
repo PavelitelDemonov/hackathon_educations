@@ -5,7 +5,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 from .serializers import RegisterSerializers, ProfileSerializer, LoginSerializer
 from .models import User
-
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 class RegisterView(generics.CreateAPIView):
   
@@ -41,8 +41,6 @@ class ProtectedView(RoleRequiredMixin,APIView):
             'data': 'Ваши защищенные данные здесь'
         })
 """
-class AdminModuleViewSet(viewsets.ModelViewSet):
-    permission_classes =[IsAdminUser]
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -59,4 +57,5 @@ class ProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-    
+class LoginView(TokenObtainPairView):
+    serializer_class = LoginSerializer

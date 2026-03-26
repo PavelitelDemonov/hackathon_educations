@@ -14,7 +14,12 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
 
     email = models.CharField(blank=True, null=True)
-    
+
+    def calculate_level(self):
+        import math
+        return max(1, int(math.sqrt(self.experience / 100))) #переделать
+
     def add_experience(self, points):
         self.experience += points
+        self.level = self.calculate_level()
         self.save()
