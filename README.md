@@ -3,18 +3,10 @@
 ## **Быстрый старт (Docker)**
 
 ```bash
-# 1. Копируй переменные окружения
 cp .env.example .env
-
-# 2. Запусти контейнеры (фоновый режим)
 docker compose up -d --build
-
-# 3. Примени миграции
 docker compose exec backend python manage.py migrate
-
-# 4. Создай суперпользователя
 docker compose exec backend python manage.py createsuperuser
-
 Открой: http://localhost:8000/admin
 ```
 ## local:
@@ -40,9 +32,9 @@ cp .env.example .env
 # Linux/Mac:
 export DJANGO_SETTINGS_MODULE=config.settings.local
 # Windows (PowerShell):
-$env:DJANGO_SETTINGS_MODULE = "config.settings.local"
+$env:DJANGO_SETTINGS_MODULE = "config.local"
 # Windows (cmd):
-set DJANGO_SETTINGS_MODULE=config.settings.local
+set DJANGO_SETTINGS_MODULE=config.local
 
 # 6. Миграции и запуск
 python manage.py migrate
