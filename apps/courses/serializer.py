@@ -7,7 +7,7 @@ User = get_user_model()
 class ModuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Module
-        fields = ['id','name','order','description']
+        fields = ['id', 'name', 'language', 'order', 'description']
 
 class LessonSerializer(serializers.ModelSerializer):
     module = ModuleSerializer(read_only=True)

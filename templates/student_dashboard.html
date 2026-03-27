@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Завозик - Кабинет ученика</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style_nousr.css' %}">
+    <link rel="stylesheet" href="{% static 'css/student_dashboard.css' %}">
+</head>
+<body class="student-dashboard-page">
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Завозик</div>
+                <nav class="nav-buttons" aria-label="Навигация ученика">
+                    <div class="lang-dropdown" id="lang-dropdown">
+                        <button class="btn btn-nav lang-trigger" id="lang-trigger" type="button" aria-expanded="false" aria-controls="lang-menu">
+                            <span id="active-language">Python</span>
+                            <span class="lang-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <ul class="lang-menu" id="lang-menu" hidden>
+                            <li><button class="lang-option is-selected" type="button" data-lang="python">Python</button></li>
+                            <li><button class="lang-option" type="button" data-lang="java">Java</button></li>
+                            <li><button class="lang-option" type="button" data-lang="javascript">JavaScript</button></li>
+                            <li><button class="lang-option" type="button" data-lang="cpp">C++</button></li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-nav is-active-tab" id="tab-home" type="button">Главная</button>
+                    <button class="btn btn-nav" id="tab-tasks" type="button">Задания</button>
+                    <button class="btn btn-nav" type="button">Контакты</button>
+                </nav>
+                <div class="auth-buttons">
+                    <button class="btn btn-auth profile-chip" id="student-profile" type="button">Профиль</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero student-hero panel-home" id="panel-home">
+            <div class="container">
+                <div class="hero-banner">
+                    <p class="hero-age">Личный кабинет ученика</p>
+                    <h1 class="hero-title">Главная ученика</h1>
+                    <p class="hero-subtitle">
+                        Текущий язык: <strong id="hero-language">Python</strong>. По каждому языку позже подключим отдельные задания.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section class="available-courses student-summary panel-home">
+            <div class="container">
+                <h2 class="section-title">Главная</h2>
+                <div class="student-stats-grid">
+                    <article class="student-stat-card">
+                        <h3>Пользователь</h3>
+                        <p id="student-username">-</p>
+                    </article>
+                    <article class="student-stat-card">
+                        <h3>Уровень</h3>
+                        <p id="student-level">-</p>
+                    </article>
+                    <article class="student-stat-card">
+                        <h3>Опыт</h3>
+                        <p id="student-experience">-</p>
+                    </article>
+                </div>
+                <div class="student-note">
+                    Главная страница пока показывает только уровень и опыт, как ты и просил.
+                </div>
+            </div>
+        </section>
+
+        <section class="available-courses student-summary panel-tasks" id="panel-tasks" hidden>
+            <div class="container">
+                <h2 class="section-title">Задания по <span id="tasks-language">Python</span></h2>
+                <p class="tasks-subtitle">Выберите модуль. Список модулей подбирается под активный язык.</p>
+                <div class="student-modules-grid" id="student-modules-list"></div>
+                <div class="student-note" id="student-modules-empty" hidden>Для этого языка пока нет модулей.</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="{% static 'js/student_dashboard.js' %}"></script>
+</body>
+</html>

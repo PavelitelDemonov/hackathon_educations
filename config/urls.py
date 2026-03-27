@@ -24,6 +24,7 @@ urlpatterns = [
     path('auth/', include('apps.users.urls')),
     path('auth/courses/', include('apps.courses.urls')),
     path('', TemplateView.as_view(template_name='index.html'), name='home'),
+    path('student/', TemplateView.as_view(template_name='student_dashboard.html'), name='student_home'),
    #path('api/', include("")),
 ]
 
