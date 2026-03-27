@@ -3,11 +3,8 @@
 ## **Быстрый старт (Docker)**
 
 ```bash
-cp .env.example .env
 docker compose up -d --build
-docker compose exec backend python manage.py migrate
-docker compose exec backend python manage.py createsuperuser
-Открой: http://localhost:8000/admin
+Открой: http://localhost:8000
 ```
 ## local:
 ```
