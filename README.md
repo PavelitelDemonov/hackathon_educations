@@ -18,9 +18,9 @@ python -m venv .venv
 # Linux/Mac:
 source .venv/bin/activate
 # Windows (cmd):
-.venv\Scripts\activate
+.venv/Scripts/activate
 # Windows (PowerShell):
-.venv\Scripts\Activate.ps1
+.venv/Scripts/Activate.ps1
 
 # 3. Установи зависимости
 pip install -r requirements.txt

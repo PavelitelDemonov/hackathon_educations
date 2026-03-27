@@ -22,11 +22,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     DEBUG=(bool, True),
     SECRET_KEY=(str, "dev-secret"),
-    ALLOWED_HOSTS=(list, ["*"]),
-    DB_NAME=(str, "postgres"),
+    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),  
+    DB_NAME=(str, "hackathon_educations"),
     DB_USER=(str, "postgres"),
-    DB_PASSWORD=(str, "postgres"),
-    DB_HOST=(str, "localhost"),
+    DB_PASSWORD=(str, "627545"),
+    DB_HOST=(str, "db"),           
     DB_PORT=(int, 5432),
 )
 
@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     
     'rest_framework',                    
     'rest_framework_simplejwt', 
+    'drf_spectacular',
              
     'apps.users',
     'apps.courses',
@@ -93,13 +94,21 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    
+
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Завозники',
+    'DESCRIPTION': 'Образовательная платформа',
+    'VERSION': '1.0.0',
 }
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:8000"
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -114,13 +123,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME"),
-        "USER": env("DB_USER"),
-        "PASSWORD": env("DB_PASSWORD"),
-        "HOST": env("DB_HOST"),
-        "PORT": env("DB_PORT"),
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env("DB_NAME"),
+        'USER': env("DB_USER"),
+        'PASSWORD': env("DB_PASSWORD"),
+        'HOST': env("DB_HOST"),    
+        'PORT': env("DB_PORT"),
     }
 }
 
@@ -159,7 +168,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static'] 
 
