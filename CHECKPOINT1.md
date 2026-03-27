@@ -1,12 +1,10 @@
 ##**Архитектура**
-```
+
 Монолит
 
 Frontend (HTML/CSS/JS) 
 Backend Django (Templates + API)  + PostgreSQL
 dev  Docker
-
-```
 
 ##**Технологический стек**
 
