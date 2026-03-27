@@ -20,6 +20,7 @@ class UserProgress(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
     completed = models.BooleanField(default=False)
     score = models.FloatField(null=True, blank=True)
+    module_reward_granted = models.BooleanField(default=False)
 
 
 class Achievement(models.Model):

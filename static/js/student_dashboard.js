@@ -1,4 +1,6 @@
-const token = localStorage.getItem("token");
+let accessToken = localStorage.getItem("token");
+const refreshToken = localStorage.getItem("refresh");
+let refreshPromise = null;
 
 const langDropdown = document.getElementById("lang-dropdown");
 const langTrigger = document.getElementById("lang-trigger");
@@ -11,6 +13,13 @@ const usernameEl = document.getElementById("student-username");
 const levelEl = document.getElementById("student-level");
 const experienceEl = document.getElementById("student-experience");
 const profileBtn = document.getElementById("student-profile");
+const headerAvatarImageEl = document.getElementById("header-avatar-image");
+const headerAvatarFallbackEl = document.getElementById("header-avatar-fallback");
+const headerProfileLabelEl = document.getElementById("header-profile-label");
+const profileMenuWrap = document.getElementById("profile-menu");
+const profileMenuList = document.getElementById("profile-menu-list");
+const profileMenuProfileBtn = document.getElementById("profile-menu-profile");
+const profileMenuLogoutBtn = document.getElementById("profile-menu-logout");
 const homeTab = document.getElementById("tab-home");
 const tasksTab = document.getElementById("tab-tasks");
 const homePanels = document.querySelectorAll(".panel-home");
@@ -20,13 +29,41 @@ const modulesEmptyEl = document.getElementById("student-modules-empty");
 const lessonViewerEl = document.getElementById("student-lesson-viewer");
 const lessonModuleNameEl = document.getElementById("lesson-module-name");
 const lessonCounterEl = document.getElementById("lesson-counter");
+const lessonProgressTrackEl = document.getElementById("lesson-progress-track");
+const lessonProgressTextEl = document.getElementById("lesson-progress-text");
 const lessonListEl = document.getElementById("lesson-list");
 const lessonTitleEl = document.getElementById("lesson-title");
 const lessonContentEl = document.getElementById("lesson-content");
 const lessonPrevBtn = document.getElementById("lesson-prev-btn");
 const lessonNextBtn = document.getElementById("lesson-next-btn");
+const codeModalEl = document.getElementById("code-modal");
+const codeModalTitleEl = document.getElementById("code-modal-title");
+const codeModalContentEl = document.getElementById("code-modal-content");
+const codeModalCloseEls = document.querySelectorAll("[data-close-code-modal]");
+const profileModalEl = document.getElementById("profile-modal");
+const profileModalCloseEls = document.querySelectorAll("[data-close-profile-modal]");
+const profileFormEl = document.getElementById("profile-form");
+const profileMessageEl = document.getElementById("profile-form-message");
+const profileUsernameInput = document.getElementById("profile-username");
+const profileFirstNameInput = document.getElementById("profile-first-name");
+const profileLastNameInput = document.getElementById("profile-last-name");
+const profileEmailInput = document.getElementById("profile-email");
+const profileRoleInput = document.getElementById("profile-role");
+const profileLevelInput = document.getElementById("profile-level");
+const profileAvatarPreviewEl = document.getElementById("profile-avatar-preview");
+const profileAvatarOpenEditorBtn = document.getElementById("profile-avatar-open-editor");
+const profileAvatarInput = document.getElementById("profile-avatar-input");
+const profileAvatarImageEl = document.getElementById("profile-avatar-image");
+const profileAvatarPlaceholderEl = document.getElementById("profile-avatar-placeholder");
+const avatarModalEl = document.getElementById("avatar-modal");
+const avatarModalCloseEls = document.querySelectorAll("[data-close-avatar-modal]");
+const avatarEditorCanvasEl = document.getElementById("avatar-editor-canvas");
+const avatarEditorZoomEl = document.getElementById("avatar-editor-zoom");
+const avatarEditorPickBtn = document.getElementById("avatar-editor-pick");
+const avatarEditorApplyBtn = document.getElementById("avatar-editor-apply");
+const avatarEditorStageEl = document.querySelector(".avatar-editor-stage");
 
-if (!token) {
+if (!accessToken) {
     window.location.replace("/");
 }
 
@@ -46,7 +83,99 @@ let currentLessonIndex = 0;
 let currentLessonSections = [];
 let currentSectionIndex = 0;
 const lessonsByModule = new Map();
+const moduleLessonTotals = new Map();
+const moduleLessonsLoading = new Set();
 let lessonRequestSeq = 0;
+const completedLessonIds = new Set();
+const completedLessonIdsByModule = new Map();
+const lessonCompletionInFlight = new Set();
+const rewardedModuleIds = new Set();
+const viewedSlidesByLessonId = new Map();
+let lessonProgressStatusMessage = "";
+let currentProfile = null;
+let avatarDraftBlob = null;
+let avatarDraftDirty = false;
+let avatarDraftPreviewUrl = "";
+let avatarEditorImage = null;
+let avatarEditorScale = 1;
+let avatarEditorOffsetX = 0;
+let avatarEditorOffsetY = 0;
+let avatarEditorDragging = false;
+let avatarEditorDragStartX = 0;
+let avatarEditorDragStartY = 0;
+let avatarEditorDragStartOffsetX = 0;
+let avatarEditorDragStartOffsetY = 0;
+
+function clearAuthAndRedirect() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh");
+    accessToken = "";
+    window.location.replace("/");
+}
+
+async function refreshAccessToken() {
+    if (refreshPromise) {
+        return refreshPromise;
+    }
+    if (!refreshToken) {
+        throw new Error("Отсутствует refresh-токен.");
+    }
+
+    refreshPromise = (async () => {
+        const response = await fetch("/auth/token/refresh/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ refresh: refreshToken })
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || typeof payload?.access !== "string" || !payload.access) {
+            throw new Error("Не удалось обновить сессию.");
+        }
+
+        accessToken = payload.access;
+        localStorage.setItem("token", accessToken);
+        return accessToken;
+    })();
+
+    try {
+        return await refreshPromise;
+    } finally {
+        refreshPromise = null;
+    }
+}
+
+async function authFetch(url, options = {}, allowRetry = true) {
+    const headers = new Headers(options.headers || {});
+    if (accessToken && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+
+    let response = await fetch(url, { ...options, headers });
+    if (response.status !== 401 || !allowRetry) {
+        return response;
+    }
+
+    try {
+        await refreshAccessToken();
+    } catch (error) {
+        clearAuthAndRedirect();
+        throw error;
+    }
+
+    const retryHeaders = new Headers(options.headers || {});
+    if (accessToken && !retryHeaders.has("Authorization")) {
+        retryHeaders.set("Authorization", `Bearer ${accessToken}`);
+    }
+    response = await fetch(url, { ...options, headers: retryHeaders });
+
+    if (response.status === 401) {
+        clearAuthAndRedirect();
+    }
+    return response;
+}
 
 function setLanguage(languageKey) {
     const config = LANGUAGE_CONFIG[languageKey];
@@ -81,6 +210,434 @@ function closeLanguageMenu() {
     langTrigger.setAttribute("aria-expanded", "false");
 }
 
+function closeProfileMenu() {
+    if (!profileMenuList || !profileBtn) {
+        return;
+    }
+    profileMenuList.hidden = true;
+    profileBtn.setAttribute("aria-expanded", "false");
+}
+
+function openProfileMenu() {
+    if (!profileMenuList || !profileBtn) {
+        return;
+    }
+    profileMenuList.hidden = false;
+    profileBtn.setAttribute("aria-expanded", "true");
+}
+
+function toggleProfileMenu() {
+    if (!profileMenuList) {
+        return;
+    }
+    if (profileMenuList.hidden) {
+        openProfileMenu();
+        return;
+    }
+    closeProfileMenu();
+}
+
+function setProfileMessage(message, type = "") {
+    if (!profileMessageEl) {
+        return;
+    }
+    profileMessageEl.textContent = message || "";
+    profileMessageEl.classList.remove("is-success", "is-error");
+    if (type === "success") {
+        profileMessageEl.classList.add("is-success");
+    } else if (type === "error") {
+        profileMessageEl.classList.add("is-error");
+    }
+}
+
+function setLessonProgressStatus(message) {
+    lessonProgressStatusMessage = String(message || "").trim();
+}
+
+function normalizeAvatarUrl(rawUrl) {
+    const value = String(rawUrl || "").trim();
+    if (!value) {
+        return "";
+    }
+    if (/^https?:\/\//i.test(value)) {
+        return value;
+    }
+    return value.startsWith("/") ? value : `/${value}`;
+}
+
+function getProfileInitial(rawUsername) {
+    const value = String(rawUsername || "").trim();
+    if (!value) {
+        return "?";
+    }
+    return value[0].toUpperCase();
+}
+
+function setHeaderProfileChip(usernameValue, levelValue, avatarRawUrl) {
+    const username = String(usernameValue || "-");
+    const level = String(levelValue ?? "-");
+    const label = `${username} | Lv.${level}`;
+
+    if (headerProfileLabelEl) {
+        headerProfileLabelEl.textContent = label;
+    } else if (profileBtn) {
+        profileBtn.textContent = label;
+    }
+
+    const avatarUrl = normalizeAvatarUrl(avatarRawUrl);
+    if (headerAvatarImageEl) {
+        if (avatarUrl) {
+            headerAvatarImageEl.src = `${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+            headerAvatarImageEl.hidden = false;
+        } else {
+            headerAvatarImageEl.hidden = true;
+            headerAvatarImageEl.removeAttribute("src");
+        }
+    }
+
+    if (headerAvatarFallbackEl) {
+        headerAvatarFallbackEl.textContent = getProfileInitial(username);
+        headerAvatarFallbackEl.hidden = Boolean(avatarUrl);
+    }
+}
+
+function revokeAvatarDraftPreviewUrl() {
+    if (!avatarDraftPreviewUrl) {
+        return;
+    }
+    URL.revokeObjectURL(avatarDraftPreviewUrl);
+    avatarDraftPreviewUrl = "";
+}
+
+function setProfileAvatarPreview(srcValue) {
+    const safeSrc = String(srcValue || "").trim();
+    if (profileAvatarImageEl) {
+        if (safeSrc) {
+            profileAvatarImageEl.src = safeSrc;
+            profileAvatarImageEl.hidden = false;
+        } else {
+            profileAvatarImageEl.hidden = true;
+            profileAvatarImageEl.removeAttribute("src");
+        }
+    }
+    if (profileAvatarPlaceholderEl) {
+        profileAvatarPlaceholderEl.hidden = Boolean(safeSrc);
+    }
+}
+
+function resetAvatarEditorState() {
+    avatarEditorImage = null;
+    avatarEditorScale = 1;
+    avatarEditorOffsetX = 0;
+    avatarEditorOffsetY = 0;
+    avatarEditorDragging = false;
+
+    if (avatarEditorZoomEl) {
+        avatarEditorZoomEl.value = "1";
+    }
+    if (avatarEditorCanvasEl) {
+        avatarEditorCanvasEl.hidden = true;
+        avatarEditorCanvasEl.classList.remove("is-dragging");
+        const ctx = avatarEditorCanvasEl.getContext("2d");
+        if (ctx) {
+            ctx.clearRect(0, 0, avatarEditorCanvasEl.width, avatarEditorCanvasEl.height);
+        }
+    }
+    if (avatarEditorApplyBtn) {
+        avatarEditorApplyBtn.disabled = true;
+    }
+}
+
+function resetAvatarPreview(profile) {
+    avatarDraftBlob = null;
+    avatarDraftDirty = false;
+    revokeAvatarDraftPreviewUrl();
+    resetAvatarEditorState();
+
+    if (profileAvatarInput) {
+        profileAvatarInput.value = "";
+    }
+
+    const avatarUrl = normalizeAvatarUrl(profile?.avatar_url || profile?.avatar);
+    if (avatarUrl) {
+        setProfileAvatarPreview(`${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}v=${Date.now()}`);
+        return;
+    }
+
+    setProfileAvatarPreview("");
+}
+
+function populateProfileForm(profile) {
+    if (!profile) {
+        return;
+    }
+    if (profileUsernameInput) {
+        profileUsernameInput.value = profile.username || "";
+    }
+    if (profileFirstNameInput) {
+        profileFirstNameInput.value = profile.first_name || "";
+    }
+    if (profileLastNameInput) {
+        profileLastNameInput.value = profile.last_name || "";
+    }
+    if (profileEmailInput) {
+        profileEmailInput.value = profile.email || "";
+    }
+    if (profileRoleInput) {
+        profileRoleInput.value = profile.role_display || profile.role || "";
+    }
+    if (profileLevelInput) {
+        profileLevelInput.value = profile.level ?? "";
+    }
+    resetAvatarPreview(profile);
+}
+
+function closeProfileModal() {
+    if (!profileModalEl) {
+        return;
+    }
+    closeAvatarModal();
+    profileModalEl.hidden = true;
+    document.body.classList.remove("is-profile-modal-open");
+    setProfileMessage("");
+}
+
+async function openProfileModal() {
+    if (!profileModalEl) {
+        return;
+    }
+    profileModalEl.hidden = false;
+    document.body.classList.add("is-profile-modal-open");
+    setProfileMessage("Загружаем профиль...");
+
+    if (currentProfile) {
+        populateProfileForm(currentProfile);
+    }
+
+    try {
+        const profile = await fetchProfile();
+        currentProfile = profile;
+        fillProfile(profile);
+        populateProfileForm(profile);
+        setProfileMessage("");
+    } catch (error) {
+        setProfileMessage("Не удалось загрузить профиль.", "error");
+    }
+}
+
+function clamp(value, minValue, maxValue) {
+    return Math.min(maxValue, Math.max(minValue, value));
+}
+
+function clampAvatarEditorOffset() {
+    if (!avatarEditorImage || !avatarEditorCanvasEl) {
+        avatarEditorOffsetX = 0;
+        avatarEditorOffsetY = 0;
+        return;
+    }
+
+    const canvasWidth = avatarEditorCanvasEl.width;
+    const canvasHeight = avatarEditorCanvasEl.height;
+    const baseScale = Math.max(canvasWidth / avatarEditorImage.width, canvasHeight / avatarEditorImage.height);
+    const totalScale = baseScale * avatarEditorScale;
+    const drawWidth = avatarEditorImage.width * totalScale;
+    const drawHeight = avatarEditorImage.height * totalScale;
+
+    const maxOffsetX = Math.max(0, (drawWidth - canvasWidth) / 2);
+    const maxOffsetY = Math.max(0, (drawHeight - canvasHeight) / 2);
+    avatarEditorOffsetX = clamp(avatarEditorOffsetX, -maxOffsetX, maxOffsetX);
+    avatarEditorOffsetY = clamp(avatarEditorOffsetY, -maxOffsetY, maxOffsetY);
+}
+
+function renderAvatarEditorCanvas() {
+    if (!avatarEditorCanvasEl) {
+        return;
+    }
+
+    const ctx = avatarEditorCanvasEl.getContext("2d");
+    if (!ctx) {
+        return;
+    }
+    const canvasWidth = avatarEditorCanvasEl.width;
+    const canvasHeight = avatarEditorCanvasEl.height;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillStyle = "#13213d";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    if (!avatarEditorImage) {
+        avatarEditorCanvasEl.hidden = true;
+        if (avatarEditorApplyBtn) {
+            avatarEditorApplyBtn.disabled = true;
+        }
+        return;
+    }
+
+    avatarEditorCanvasEl.hidden = false;
+    if (avatarEditorApplyBtn) {
+        avatarEditorApplyBtn.disabled = false;
+    }
+
+    clampAvatarEditorOffset();
+    const baseScale = Math.max(canvasWidth / avatarEditorImage.width, canvasHeight / avatarEditorImage.height);
+    const totalScale = baseScale * avatarEditorScale;
+    const drawWidth = avatarEditorImage.width * totalScale;
+    const drawHeight = avatarEditorImage.height * totalScale;
+    const drawX = (canvasWidth - drawWidth) / 2 + avatarEditorOffsetX;
+    const drawY = (canvasHeight - drawHeight) / 2 + avatarEditorOffsetY;
+
+    ctx.drawImage(
+        avatarEditorImage,
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight
+    );
+}
+
+function stopAvatarEditorDrag(pointerId) {
+    avatarEditorDragging = false;
+    if (avatarEditorCanvasEl) {
+        avatarEditorCanvasEl.classList.remove("is-dragging");
+        if (typeof pointerId === "number") {
+            try {
+                if (avatarEditorCanvasEl.hasPointerCapture(pointerId)) {
+                    avatarEditorCanvasEl.releasePointerCapture(pointerId);
+                }
+            } catch (error) {
+                // Игнорируем ошибки release/capture при закрытии модалки.
+            }
+        }
+    }
+}
+
+function loadImageByUrl(imageUrl) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Не удалось обработать изображение."));
+        image.src = imageUrl;
+    });
+}
+
+async function ensureAvatarEditorSourceFromPreview() {
+    if (avatarEditorImage) {
+        return;
+    }
+    const previewSrc = String(profileAvatarImageEl?.src || "").trim();
+    if (!previewSrc) {
+        return;
+    }
+
+    try {
+        avatarEditorImage = await loadImageByUrl(previewSrc);
+        avatarEditorScale = 1;
+        avatarEditorOffsetX = 0;
+        avatarEditorOffsetY = 0;
+        if (avatarEditorZoomEl) {
+            avatarEditorZoomEl.value = "1";
+        }
+    } catch (error) {
+        avatarEditorImage = null;
+    }
+}
+
+function closeAvatarModal() {
+    if (!avatarModalEl) {
+        return;
+    }
+    stopAvatarEditorDrag();
+    avatarModalEl.hidden = true;
+    document.body.classList.remove("is-avatar-modal-open");
+}
+
+async function openAvatarModal() {
+    if (!avatarModalEl) {
+        return;
+    }
+    avatarModalEl.hidden = false;
+    document.body.classList.add("is-avatar-modal-open");
+    await ensureAvatarEditorSourceFromPreview();
+    renderAvatarEditorCanvas();
+}
+
+async function getAvatarEditorBlob() {
+    if (!avatarEditorImage || !avatarEditorCanvasEl) {
+        return null;
+    }
+
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = 512;
+    exportCanvas.height = 512;
+    const exportCtx = exportCanvas.getContext("2d");
+    if (!exportCtx) {
+        return null;
+    }
+
+    const canvasWidth = avatarEditorCanvasEl.width;
+    const canvasHeight = avatarEditorCanvasEl.height;
+    const baseScale = Math.max(canvasWidth / avatarEditorImage.width, canvasHeight / avatarEditorImage.height);
+    const totalScale = baseScale * avatarEditorScale;
+    const drawWidth = avatarEditorImage.width * totalScale;
+    const drawHeight = avatarEditorImage.height * totalScale;
+    const drawX = (canvasWidth - drawWidth) / 2 + avatarEditorOffsetX;
+    const drawY = (canvasHeight - drawHeight) / 2 + avatarEditorOffsetY;
+
+    const scaleX = exportCanvas.width / canvasWidth;
+    const scaleY = exportCanvas.height / canvasHeight;
+
+    exportCtx.drawImage(
+        avatarEditorImage,
+        drawX * scaleX,
+        drawY * scaleY,
+        drawWidth * scaleX,
+        drawHeight * scaleY
+    );
+
+    return new Promise((resolve) => {
+        exportCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+    });
+}
+
+function extractProfileError(payload) {
+    if (!payload || typeof payload !== "object") {
+        return "Не удалось сохранить профиль.";
+    }
+    if (typeof payload.detail === "string") {
+        return payload.detail;
+    }
+    const firstKey = Object.keys(payload)[0];
+    if (!firstKey) {
+        return "Не удалось сохранить профиль.";
+    }
+    const value = payload[firstKey];
+    if (Array.isArray(value) && value.length) {
+        return String(value[0]);
+    }
+    if (typeof value === "string") {
+        return value;
+    }
+    return "Не удалось сохранить профиль.";
+}
+
+function closeCodeModal() {
+    if (!codeModalEl) {
+        return;
+    }
+    codeModalEl.hidden = true;
+    document.body.classList.remove("is-code-modal-open");
+}
+
+function openCodeModal(codeText, codeLanguage) {
+    if (!codeModalEl || !codeModalTitleEl || !codeModalContentEl) {
+        return;
+    }
+    codeModalTitleEl.textContent = codeLanguage ? `Код: ${codeLanguage}` : "Код";
+    codeModalContentEl.textContent = String(codeText || "");
+    codeModalEl.hidden = false;
+    document.body.classList.add("is-code-modal-open");
+}
+
 function openLanguageMenu() {
     langMenu.hidden = false;
     langTrigger.setAttribute("aria-expanded", "true");
@@ -108,11 +665,252 @@ document.addEventListener("click", (event) => {
     if (!langDropdown.contains(event.target)) {
         closeLanguageMenu();
     }
+    if (profileMenuWrap && !profileMenuWrap.contains(event.target)) {
+        closeProfileMenu();
+    }
 });
 
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         closeLanguageMenu();
+        closeProfileMenu();
+        if (avatarModalEl && !avatarModalEl.hidden) {
+            closeAvatarModal();
+            return;
+        }
+        if (profileModalEl && !profileModalEl.hidden) {
+            closeProfileModal();
+            return;
+        }
+        if (codeModalEl && !codeModalEl.hidden) {
+            closeCodeModal();
+            return;
+        }
+        return;
+    }
+
+    if (avatarModalEl && !avatarModalEl.hidden) {
+        return;
+    }
+
+    if (profileModalEl && !profileModalEl.hidden) {
+        return;
+    }
+
+    if (tasksPanel.hidden || lessonViewerEl.hidden) {
+        return;
+    }
+    if (codeModalEl && !codeModalEl.hidden) {
+        return;
+    }
+
+    if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goToPreviousSlide();
+        return;
+    }
+
+    if (event.key === "ArrowRight") {
+        event.preventDefault();
+        void goToNextSlide();
+    }
+});
+
+codeModalCloseEls.forEach((element) => {
+    element.addEventListener("click", closeCodeModal);
+});
+
+profileBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleProfileMenu();
+});
+
+profileMenuProfileBtn?.addEventListener("click", () => {
+    closeProfileMenu();
+    void openProfileModal();
+});
+
+profileMenuLogoutBtn?.addEventListener("click", () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh");
+    accessToken = "";
+    closeProfileMenu();
+    window.location.replace("/");
+});
+
+profileModalCloseEls.forEach((element) => {
+    element.addEventListener("click", closeProfileModal);
+});
+
+avatarModalCloseEls.forEach((element) => {
+    element.addEventListener("click", closeAvatarModal);
+});
+
+function triggerAvatarPicker() {
+    if (!profileAvatarInput) {
+        return;
+    }
+    // Сбрасываем значение, чтобы можно было выбрать тот же файл повторно.
+    profileAvatarInput.value = "";
+    profileAvatarInput?.click();
+}
+
+profileAvatarPreviewEl?.addEventListener("click", () => {
+    triggerAvatarPicker();
+});
+
+profileAvatarPreviewEl?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+        return;
+    }
+    event.preventDefault();
+    triggerAvatarPicker();
+});
+
+profileAvatarOpenEditorBtn?.addEventListener("click", () => {
+    if (!avatarEditorImage && !profileAvatarImageEl?.src) {
+        triggerAvatarPicker();
+        return;
+    }
+    void openAvatarModal();
+});
+
+avatarEditorPickBtn?.addEventListener("click", () => {
+    triggerAvatarPicker();
+});
+
+avatarEditorStageEl?.addEventListener("click", () => {
+    if (avatarEditorImage) {
+        return;
+    }
+    triggerAvatarPicker();
+});
+
+async function loadAvatarFromFile(file) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+        avatarEditorImage = await loadImageByUrl(objectUrl);
+        avatarEditorScale = 1;
+        avatarEditorOffsetX = 0;
+        avatarEditorOffsetY = 0;
+        if (avatarEditorZoomEl) {
+            avatarEditorZoomEl.value = "1";
+        }
+        renderAvatarEditorCanvas();
+        await openAvatarModal();
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+}
+
+profileAvatarInput?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+        return;
+    }
+
+    try {
+        await loadAvatarFromFile(file);
+    } catch (error) {
+        setProfileMessage("Не удалось обработать изображение.", "error");
+    }
+});
+
+avatarEditorZoomEl?.addEventListener("input", () => {
+    avatarEditorScale = Number(avatarEditorZoomEl.value || 1);
+    renderAvatarEditorCanvas();
+});
+
+avatarEditorCanvasEl?.addEventListener("pointerdown", (event) => {
+    if (!avatarEditorImage) {
+        return;
+    }
+    event.preventDefault();
+    avatarEditorDragging = true;
+    avatarEditorDragStartX = event.clientX;
+    avatarEditorDragStartY = event.clientY;
+    avatarEditorDragStartOffsetX = avatarEditorOffsetX;
+    avatarEditorDragStartOffsetY = avatarEditorOffsetY;
+    avatarEditorCanvasEl.classList.add("is-dragging");
+    avatarEditorCanvasEl.setPointerCapture(event.pointerId);
+});
+
+avatarEditorCanvasEl?.addEventListener("pointermove", (event) => {
+    if (!avatarEditorDragging) {
+        return;
+    }
+    avatarEditorOffsetX = avatarEditorDragStartOffsetX + (event.clientX - avatarEditorDragStartX);
+    avatarEditorOffsetY = avatarEditorDragStartOffsetY + (event.clientY - avatarEditorDragStartY);
+    renderAvatarEditorCanvas();
+});
+
+avatarEditorCanvasEl?.addEventListener("pointerup", (event) => {
+    stopAvatarEditorDrag(event.pointerId);
+});
+
+avatarEditorCanvasEl?.addEventListener("pointercancel", (event) => {
+    stopAvatarEditorDrag(event.pointerId);
+});
+
+avatarEditorCanvasEl?.addEventListener("wheel", (event) => {
+    if (!avatarEditorImage || !avatarEditorZoomEl) {
+        return;
+    }
+    event.preventDefault();
+
+    const step = event.deltaY < 0 ? 0.05 : -0.05;
+    const nextZoom = clamp(Number(avatarEditorZoomEl.value || 1) + step, 1, 3);
+    avatarEditorZoomEl.value = nextZoom.toFixed(2);
+    avatarEditorScale = nextZoom;
+    renderAvatarEditorCanvas();
+}, { passive: false });
+
+avatarEditorApplyBtn?.addEventListener("click", async () => {
+    const avatarBlob = await getAvatarEditorBlob();
+    if (!avatarBlob) {
+        setProfileMessage("Сначала выберите фото для аватара.", "error");
+        return;
+    }
+
+    avatarDraftBlob = avatarBlob;
+    avatarDraftDirty = true;
+    revokeAvatarDraftPreviewUrl();
+    avatarDraftPreviewUrl = URL.createObjectURL(avatarBlob);
+    setProfileAvatarPreview(avatarDraftPreviewUrl);
+    closeAvatarModal();
+    setProfileMessage("Аватар обновлён. Нажмите «Сохранить».", "success");
+});
+
+profileFormEl?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    setProfileMessage("Сохраняем профиль...");
+    const formData = new FormData();
+    formData.append("first_name", (profileFirstNameInput?.value || "").trim());
+    formData.append("last_name", (profileLastNameInput?.value || "").trim());
+    formData.append("email", (profileEmailInput?.value || "").trim());
+
+    if (avatarDraftDirty && avatarDraftBlob) {
+        formData.append("avatar", avatarDraftBlob, "avatar.jpg");
+    }
+
+    try {
+        const response = await authFetch("/auth/profile/", {
+            method: "PATCH",
+            body: formData
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(extractProfileError(payload));
+        }
+
+        currentProfile = payload;
+        fillProfile(payload);
+        populateProfileForm(payload);
+        setProfileMessage("Профиль сохранён.", "success");
+    } catch (error) {
+        setProfileMessage(error?.message || "Не удалось сохранить профиль.", "error");
     }
 });
 
@@ -151,7 +949,7 @@ modulesListEl.addEventListener("click", (event) => {
     selectModule(moduleId, moduleName);
 });
 
-lessonPrevBtn.addEventListener("click", () => {
+function goToPreviousSlide() {
     if (!currentLessons.length) {
         return;
     }
@@ -167,9 +965,9 @@ lessonPrevBtn.addEventListener("click", () => {
         currentSectionIndex = Number.MAX_SAFE_INTEGER;
         renderActiveLesson();
     }
-});
+}
 
-lessonNextBtn.addEventListener("click", () => {
+async function goToNextSlide() {
     if (!currentLessons.length) {
         return;
     }
@@ -180,11 +978,24 @@ lessonNextBtn.addEventListener("click", () => {
         return;
     }
 
+    const completionSaved = await completeCurrentLessonIfNeeded();
+    if (!completionSaved) {
+        console.warn("Не удалось сохранить прогресс, но переход к следующему шагу продолжается.");
+    }
+
     if (currentLessonIndex < currentLessons.length - 1) {
         currentLessonIndex += 1;
         currentSectionIndex = 0;
         renderActiveLesson();
+        return;
     }
+
+    renderActiveLesson();
+}
+
+lessonPrevBtn.addEventListener("click", goToPreviousSlide);
+lessonNextBtn.addEventListener("click", () => {
+    void goToNextSlide();
 });
 
 lessonListEl.addEventListener("click", (event) => {
@@ -202,6 +1013,18 @@ lessonListEl.addEventListener("click", (event) => {
 });
 
 lessonContentEl.addEventListener("click", async (event) => {
+    const expandButton = event.target.closest(".md-code-expand");
+    if (expandButton) {
+        const codeBlock = expandButton.closest(".md-code-block");
+        const codeEl = codeBlock?.querySelector("code");
+        if (!codeEl) {
+            return;
+        }
+        const langLabel = expandButton.dataset.codeLang || "Code";
+        openCodeModal(codeEl.textContent || "", langLabel);
+        return;
+    }
+
     const copyButton = event.target.closest(".md-code-copy");
     if (!copyButton) {
         return;
@@ -228,9 +1051,8 @@ lessonContentEl.addEventListener("click", async (event) => {
 });
 
 async function fetchProfile() {
-    const response = await fetch("/auth/profile/", {
+    const response = await authFetch("/auth/profile/", {
         headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json"
         }
     });
@@ -270,15 +1092,115 @@ async function fetchLessons(moduleId) {
     return response.json();
 }
 
+async function fetchUserProgress() {
+    const response = await authFetch("/auth/courses/progress/", {
+        headers: {
+            "Content-Type": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error("Не удалось загрузить прогресс");
+    }
+
+    return response.json();
+}
+
+function syncProgressState(progressItems) {
+    completedLessonIds.clear();
+    completedLessonIdsByModule.clear();
+    rewardedModuleIds.clear();
+
+    (Array.isArray(progressItems) ? progressItems : []).forEach((item) => {
+        const lessonId = Number(
+            typeof item?.lesson === "number" ? item.lesson : item?.lesson?.id
+        );
+        const moduleId = Number(item?.module);
+        if (item?.completed && Number.isFinite(lessonId)) {
+            completedLessonIds.add(lessonId);
+            if (Number.isFinite(moduleId)) {
+                if (!completedLessonIdsByModule.has(moduleId)) {
+                    completedLessonIdsByModule.set(moduleId, new Set());
+                }
+                completedLessonIdsByModule.get(moduleId).add(lessonId);
+            }
+        }
+        if (item?.module_reward_granted && typeof item?.module === "number") {
+            rewardedModuleIds.add(item.module);
+        }
+    });
+}
+
+function getCompletedLessonsForModule(moduleId) {
+    const normalizedModuleId = Number(moduleId);
+    if (!Number.isFinite(normalizedModuleId)) {
+        return 0;
+    }
+    const completedSet = completedLessonIdsByModule.get(normalizedModuleId);
+    return completedSet ? completedSet.size : 0;
+}
+
+function getModuleProgressStats(moduleId) {
+    const normalizedModuleId = Number(moduleId);
+    const total = moduleLessonTotals.get(normalizedModuleId) ?? 0;
+    const completed = getCompletedLessonsForModule(normalizedModuleId);
+    const safeTotal = Math.max(total, completed);
+    const percent = safeTotal > 0 ? Math.round((completed / safeTotal) * 100) : 0;
+    return {
+        completed,
+        total: safeTotal,
+        percent: clamp(percent, 0, 100)
+    };
+}
+
+async function warmupModuleLessonTotals(modules) {
+    const moduleItems = Array.isArray(modules) ? modules : [];
+    const tasks = [];
+
+    moduleItems.forEach((module) => {
+        const moduleId = Number(module?.id);
+        if (!Number.isFinite(moduleId) || moduleLessonTotals.has(moduleId) || moduleLessonsLoading.has(moduleId)) {
+            return;
+        }
+        moduleLessonsLoading.add(moduleId);
+        tasks.push(
+            (async () => {
+                try {
+                    const lessons = await fetchLessons(moduleId);
+                    const normalizedLessons = Array.isArray(lessons) ? lessons : [];
+                    moduleLessonTotals.set(moduleId, normalizedLessons.length);
+                    if (!lessonsByModule.has(moduleId)) {
+                        lessonsByModule.set(moduleId, normalizedLessons);
+                    }
+                } catch (error) {
+                    moduleLessonTotals.set(moduleId, getCompletedLessonsForModule(moduleId));
+                } finally {
+                    moduleLessonsLoading.delete(moduleId);
+                }
+            })()
+        );
+    });
+
+    if (!tasks.length) {
+        return;
+    }
+    await Promise.allSettled(tasks);
+
+    const filteredModules = filterModulesByLanguage(allModules, activeLanguageKey);
+    renderModules(filteredModules);
+}
+
 function fillProfile(profile) {
+    currentProfile = profile;
     const username = profile.username || "-";
     const level = profile.level ?? "-";
     const experience = profile.experience ?? "-";
+    const avatarRawUrl = profile?.avatar_url || profile?.avatar || "";
 
     usernameEl.textContent = username;
     levelEl.textContent = level;
     experienceEl.textContent = experience;
-    profileBtn.textContent = `${username} | Lv.${level}`;
+    setHeaderProfileChip(username, level, avatarRawUrl);
 }
 
 function escapeHtml(text) {
@@ -367,16 +1289,67 @@ function normalizeSectionsFromJson(rawSections) {
         .filter(Boolean);
 }
 
+function normalizeLessonText(rawContent) {
+    let content = String(rawContent || "");
+    const hasRealLineBreak = /\r|\n/.test(content);
+    if (!hasRealLineBreak && /\\[nr]/.test(content)) {
+        content = content
+            .replace(/\\r\\n/g, "\n")
+            .replace(/\\n/g, "\n")
+            .replace(/\\r/g, "\n");
+    }
+    return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
+function splitBySlideDelimiter(content) {
+    const lines = content.split("\n");
+    const chunks = [];
+    let currentLines = [];
+    let isInsideCodeFence = false;
+
+    lines.forEach((line) => {
+        const normalizedLine = isInsideCodeFence
+            ? line
+            : line.replace(/\s---+\s/g, "\n---\n");
+        const subLines = normalizedLine.split("\n");
+
+        subLines.forEach((subLine) => {
+            const trimmed = subLine.trim();
+
+            if (/^```/.test(trimmed)) {
+                isInsideCodeFence = !isInsideCodeFence;
+                currentLines.push(subLine);
+                return;
+            }
+
+            if (!isInsideCodeFence && /^-{3,}$/.test(trimmed)) {
+                const chunk = currentLines.join("\n").trim();
+                if (chunk) {
+                    chunks.push(chunk);
+                }
+                currentLines = [];
+                return;
+            }
+
+            currentLines.push(subLine);
+        });
+    });
+
+    const finalChunk = currentLines.join("\n").trim();
+    if (finalChunk) {
+        chunks.push(finalChunk);
+    }
+
+    return chunks;
+}
+
 function parseLessonSections(rawContent) {
-    const content = String(rawContent || "").trim();
+    const content = normalizeLessonText(rawContent);
     if (!content) {
         return [];
     }
 
-    const delimiterChunks = content
-        .split(/\n\s*---+\s*\n/g)
-        .map((chunk) => chunk.trim())
-        .filter(Boolean);
+    const delimiterChunks = splitBySlideDelimiter(content);
     if (delimiterChunks.length > 1) {
         return delimiterChunks.map((chunk, index) => ({
             title: `Слайд ${index + 1}`,
@@ -454,10 +1427,7 @@ function formatCodeLanguageLabel(lang) {
 }
 
 function renderMarkdownToHtml(rawMarkdown) {
-    let text = String(rawMarkdown || "").replace(/\r\n/g, "\n");
-    if (!text.includes("\n") && text.includes("\\n")) {
-        text = text.replace(/\\n/g, "\n");
-    }
+    const text = normalizeLessonText(rawMarkdown);
     const lines = text.split("\n");
     const html = [];
     let index = 0;
@@ -495,7 +1465,10 @@ function renderMarkdownToHtml(rawMarkdown) {
                 <div class="md-code-block">
                     <div class="md-code-header">
                         <span class="md-code-lang">${escapeHtml(langLabel)}</span>
-                        <button class="md-code-copy" type="button">Копировать</button>
+                        <div class="md-code-actions">
+                            <button class="md-code-expand" type="button" data-code-lang="${escapeHtml(langLabel)}">Открыть окно</button>
+                            <button class="md-code-copy" type="button">Копировать</button>
+                        </div>
                     </div>
                     <pre class="md-code-pre"><code class="md-code${langClass}">${codeHtml}</code></pre>
                 </div>
@@ -600,6 +1573,181 @@ function renderLessonContent(sections, videoUrl) {
     }
 }
 
+function getViewedSlidesSet(lessonId) {
+    const normalizedLessonId = Number(lessonId);
+    if (!Number.isFinite(normalizedLessonId)) {
+        return new Set();
+    }
+
+    if (!viewedSlidesByLessonId.has(normalizedLessonId)) {
+        viewedSlidesByLessonId.set(normalizedLessonId, new Set());
+    }
+    return viewedSlidesByLessonId.get(normalizedLessonId);
+}
+
+function renderLessonProgressOverview() {
+    if (!lessonProgressTrackEl || !lessonProgressTextEl) {
+        return;
+    }
+
+    lessonProgressTrackEl.innerHTML = "";
+
+    const currentLesson = currentLessons[currentLessonIndex];
+    if (!currentLesson || !currentLessonSections.length) {
+        lessonProgressTextEl.textContent = "Слайды: 0/0";
+        return;
+    }
+
+    const viewedSlides = getViewedSlidesSet(currentLesson.id);
+    const viewedCount = viewedSlides.size;
+    lessonProgressTextEl.textContent = lessonProgressStatusMessage
+        ? `Слайды: ${viewedCount}/${currentLessonSections.length} • ${lessonProgressStatusMessage}`
+        : `Слайды: ${viewedCount}/${currentLessonSections.length}`;
+
+    currentLessonSections.forEach((_, index) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "lesson-progress-chip";
+        chip.dataset.slideIndex = String(index);
+        chip.textContent = String(index + 1);
+
+        if (viewedSlides.has(index)) {
+            chip.classList.add("is-completed");
+        }
+        if (index === currentSectionIndex) {
+            chip.classList.add("is-active");
+        }
+
+        chip.addEventListener("click", () => {
+            currentSectionIndex = index;
+            renderActiveLesson();
+        });
+
+        lessonProgressTrackEl.appendChild(chip);
+    });
+}
+
+function applyUserXpFromPayload(userPayload) {
+    if (!userPayload) {
+        return;
+    }
+    if (typeof userPayload.level === "number") {
+        levelEl.textContent = String(userPayload.level);
+    }
+    if (typeof userPayload.xp === "number") {
+        experienceEl.textContent = String(userPayload.xp);
+    }
+    const username = usernameEl.textContent || "-";
+    const level = levelEl.textContent || "-";
+    const avatarRawUrl = currentProfile?.avatar_url || currentProfile?.avatar || "";
+    setHeaderProfileChip(username, level, avatarRawUrl);
+}
+
+async function completeLesson(lessonId) {
+    const response = await authFetch(`/auth/courses/lessons/${lessonId}/complete/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({})
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const detail = payload?.error || payload?.detail || "Не удалось сохранить прогресс";
+        throw new Error(detail);
+    }
+
+    if (payload?.progress?.completed) {
+        completedLessonIds.add(lessonId);
+        const moduleId = Number(payload?.module?.id);
+        if (Number.isFinite(moduleId)) {
+            if (!completedLessonIdsByModule.has(moduleId)) {
+                completedLessonIdsByModule.set(moduleId, new Set());
+            }
+            completedLessonIdsByModule.get(moduleId).add(lessonId);
+        }
+    }
+    if (payload?.module?.reward_granted && typeof payload?.module?.id === "number") {
+        rewardedModuleIds.add(payload.module.id);
+    }
+    if (typeof payload?.module?.total_lessons === "number" && typeof payload?.module?.id === "number") {
+        moduleLessonTotals.set(payload.module.id, payload.module.total_lessons);
+    }
+    applyUserXpFromPayload(payload?.user);
+    renderModulesForActiveLanguage();
+    return payload;
+}
+
+async function saveLessonProgressFallback(lesson) {
+    const lessonId = Number(lesson?.id);
+    const moduleId = Number(lesson?.module?.id ?? lesson?.module_id ?? activeModuleId);
+    if (!Number.isFinite(lessonId) || !Number.isFinite(moduleId)) {
+        throw new Error("Недостаточно данных для сохранения прогресса.");
+    }
+
+    const response = await authFetch("/auth/courses/progress/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            module: moduleId,
+            lesson_id: lessonId,
+            completed: true
+        })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const detail = payload?.error || payload?.detail || "Не удалось сохранить прогресс";
+        throw new Error(detail);
+    }
+
+    completedLessonIds.add(lessonId);
+    if (!completedLessonIdsByModule.has(moduleId)) {
+        completedLessonIdsByModule.set(moduleId, new Set());
+    }
+    completedLessonIdsByModule.get(moduleId).add(lessonId);
+    if (!moduleLessonTotals.has(moduleId)) {
+        moduleLessonTotals.set(moduleId, Math.max(getCompletedLessonsForModule(moduleId), 1));
+    }
+    renderModulesForActiveLanguage();
+}
+
+async function completeCurrentLessonIfNeeded() {
+    const currentLesson = currentLessons[currentLessonIndex];
+    if (!currentLesson || completedLessonIds.has(currentLesson.id)) {
+        return true;
+    }
+    if (currentSectionIndex < currentLessonSections.length - 1) {
+        return true;
+    }
+    if (lessonCompletionInFlight.has(currentLesson.id)) {
+        return true;
+    }
+
+    lessonCompletionInFlight.add(currentLesson.id);
+    try {
+        await completeLesson(currentLesson.id);
+        setLessonProgressStatus("");
+        return true;
+    } catch (error) {
+        try {
+            await saveLessonProgressFallback(currentLesson);
+            setLessonProgressStatus("");
+            return true;
+        } catch (fallbackError) {
+            setLessonProgressStatus("ошибка сохранения прогресса");
+            console.error("Не удалось сохранить прогресс урока:", error, fallbackError);
+            renderLessonProgressOverview();
+            return false;
+        }
+    } finally {
+        lessonCompletionInFlight.delete(currentLesson.id);
+    }
+}
+
 function renderLessonList() {
     lessonListEl.innerHTML = "";
 
@@ -618,8 +1766,13 @@ function renderLessonList() {
         if (index === currentLessonIndex) {
             item.classList.add("is-active");
         }
+        if (completedLessonIds.has(lesson.id)) {
+            item.classList.add("is-completed");
+        }
         item.dataset.lessonIndex = String(index);
-        item.textContent = `${index + 1}. ${lesson.title || "Без названия"}`;
+        const title = escapeHtml(lesson.title || "Без названия");
+        const marker = completedLessonIds.has(lesson.id) ? '<span class="lesson-list-item__done">✓</span>' : "";
+        item.innerHTML = `${index + 1}. ${title}${marker}`;
         lessonListEl.appendChild(item);
     });
 }
@@ -631,9 +1784,11 @@ function renderActiveLesson() {
         lessonContentEl.textContent = "Добавьте уроки в базу данных и обновите страницу.";
         lessonPrevBtn.disabled = true;
         lessonNextBtn.disabled = true;
+        lessonNextBtn.textContent = "Далее";
         currentLessonSections = [];
         currentSectionIndex = 0;
         renderLessonList();
+        renderLessonProgressOverview();
         return;
     }
 
@@ -649,6 +1804,8 @@ function renderActiveLesson() {
         currentSectionIndex = 0;
     }
 
+    getViewedSlidesSet(lesson.id).add(currentSectionIndex);
+
     const section = currentLessonSections[currentSectionIndex];
     lessonTitleEl.textContent = lesson.title || "Без названия";
     lessonCounterEl.textContent = `Урок ${currentLessonIndex + 1} из ${currentLessons.length} | Слайд ${currentSectionIndex + 1} из ${currentLessonSections.length}`;
@@ -659,8 +1816,14 @@ function renderActiveLesson() {
         currentLessonIndex === currentLessons.length - 1 &&
         currentSectionIndex === currentLessonSections.length - 1;
     lessonPrevBtn.disabled = isFirstSlide;
-    lessonNextBtn.disabled = isLastSlide;
+    lessonNextBtn.disabled = false;
+    lessonNextBtn.textContent = isLastSlide ? "Завершить" : "Далее";
     renderLessonList();
+    renderLessonProgressOverview();
+
+    if (currentSectionIndex === currentLessonSections.length - 1 && !completedLessonIds.has(lesson.id)) {
+        void completeCurrentLessonIfNeeded();
+    }
 }
 
 function renderModules(modules) {
@@ -690,11 +1853,27 @@ function renderModules(modules) {
                 ? escapeHtml(module.description)
                 : "Описание модуля пока не добавлено.";
             const moduleOrder = module.order ?? "-";
+            const progressStats = getModuleProgressStats(module.id);
+            const moduleProgressText = `${progressStats.completed}/${progressStats.total}`;
+            const moduleProgressPercentText = `${progressStats.percent}%`;
+            const isCompleted = progressStats.total > 0 && progressStats.completed >= progressStats.total;
+            if (isCompleted) {
+                card.classList.add("is-module-complete");
+            }
 
             card.innerHTML = `
                 <div class="student-module-order">#${moduleOrder}</div>
                 <h3 class="student-module-title">${escapeHtml(module.name || "Без названия")}</h3>
                 <p class="student-module-description">${description}</p>
+                <div class="student-module-progress">
+                    <div class="student-module-progress__meta">
+                        <span>Прогресс уроков</span>
+                        <span>${moduleProgressText} (${moduleProgressPercentText})</span>
+                    </div>
+                    <div class="student-module-progress__bar">
+                        <span style="width: ${progressStats.percent}%"></span>
+                    </div>
+                </div>
             `;
 
             modulesListEl.appendChild(card);
@@ -705,6 +1884,7 @@ async function selectModule(moduleId, moduleName) {
     const requestSeq = ++lessonRequestSeq;
     activeModuleId = moduleId;
     activeModuleName = moduleName || "Модуль";
+    setLessonProgressStatus("");
 
     lessonViewerEl.hidden = false;
     lessonModuleNameEl.textContent = activeModuleName;
@@ -713,6 +1893,7 @@ async function selectModule(moduleId, moduleName) {
     lessonContentEl.textContent = "Подождите, загружаем материалы модуля...";
     lessonPrevBtn.disabled = true;
     lessonNextBtn.disabled = true;
+    lessonNextBtn.textContent = "Далее";
 
     renderModulesForActiveLanguage();
 
@@ -729,9 +1910,11 @@ async function selectModule(moduleId, moduleName) {
         currentLessons = [...(lessonsByModule.get(moduleId) || [])].sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0)
         );
+        moduleLessonTotals.set(moduleId, currentLessons.length);
         currentLessonIndex = 0;
         currentSectionIndex = 0;
         currentLessonSections = [];
+        renderModulesForActiveLanguage();
         renderActiveLesson();
     } catch (error) {
         if (requestSeq !== lessonRequestSeq || activeModuleId !== moduleId) {
@@ -742,18 +1925,22 @@ async function selectModule(moduleId, moduleName) {
         currentLessonIndex = 0;
         currentSectionIndex = 0;
         currentLessonSections = [];
+        setLessonProgressStatus("");
         lessonCounterEl.textContent = "Урок 0 из 0";
         lessonTitleEl.textContent = "Не удалось загрузить уроки";
         lessonContentEl.textContent = "Проверьте данные в БД и перезагрузите страницу.";
         lessonPrevBtn.disabled = true;
         lessonNextBtn.disabled = true;
+        lessonNextBtn.textContent = "Далее";
         renderLessonList();
+        renderLessonProgressOverview();
     }
 }
 
 function renderModulesForActiveLanguage() {
     const filteredModules = filterModulesByLanguage(allModules, activeLanguageKey);
     renderModules(filteredModules);
+    void warmupModuleLessonTotals(filteredModules);
 
     if (!activeModuleId) {
         lessonViewerEl.hidden = true;
@@ -789,13 +1976,19 @@ async function initStudentDashboard() {
             allModules = [];
         }
 
+        try {
+            const progressItems = await fetchUserProgress();
+            syncProgressState(progressItems);
+        } catch (progressError) {
+            completedLessonIds.clear();
+            rewardedModuleIds.clear();
+        }
+
         fillProfile(profile);
         setLanguage(activeLanguageKey);
         setActiveTab("home");
     } catch (error) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("refresh");
-        window.location.replace("/");
+        clearAuthAndRedirect();
     }
 }
 

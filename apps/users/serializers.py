@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.password_validation import validate_password
 
 from .models import User
@@ -20,7 +18,7 @@ class RegisterSerializers(serializers.ModelSerializer):
        return User.objects.create_user(**validated_data)
 
     def validate_role(self, value):
-        allowed_roles = ['student', 'parent']
+        allowed_roles = ['student', 'parent','teacher']
         if value not in allowed_roles:
             raise serializers.ValidationError("Только для студентов/родителей")
         return value
@@ -37,13 +35,42 @@ class RegisterSerializers(serializers.ModelSerializer):
     
 class ProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    avatar_url = serializers.SerializerMethodField(read_only=True)
+
+    def get_avatar_url(self, obj):
+        if not obj.avatar:
+            return ""
+        request = self.context.get("request")
+        if request is None:
+            return obj.avatar.url
+        return request.build_absolute_uri(obj.avatar.url)
 
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'role', 'role_display', 'level', 'experience', 'date_joined'
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'avatar',
+            'avatar_url',
+            'role',
+            'role_display',
+            'level',
+            'experience',
+            'date_joined',
         ]
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = [
+            'id',
+            'username',
+            'role',
+            'role_display',
+            'level',
+            'experience',
+            'date_joined',
+            'avatar_url',
+        ]
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField() 
