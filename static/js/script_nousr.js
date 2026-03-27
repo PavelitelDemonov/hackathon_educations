@@ -73,6 +73,7 @@ const registerForm = document.querySelector('[data-auth-panel="register"]');
 const loginMessage = document.getElementById("modal-login-message");
 const registerMessage = document.getElementById("modal-register-message");
 
+
 function setAuthStatus(element, message, type) {
     element.textContent = message;
     element.classList.remove("is-error", "is-success");
@@ -157,15 +158,15 @@ loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     clearAuthStatus();
 
-    const email = document.getElementById("modal-login-email").value.trim().toLowerCase();
+    const username = document.getElementById("modal-login-username").value.trim();
     const password = document.getElementById("modal-login-password").value;
 
-    if (!email || !password) {
-        setAuthStatus(loginMessage, "Заполните почту и пароль.", "error");
+    if (!username || !password) {
+        setAuthStatus(loginMessage, "Заполните логин и пароль.", "error");
         return;
     }
 
-    const response = await mockLogin(email, password);
+    const response = await mockLogin(username, password);
     if (!response.ok) {
         setAuthStatus(loginMessage, response.message, "error");
         return;
@@ -179,12 +180,11 @@ registerForm.addEventListener("submit", async (event) => {
     clearAuthStatus();
 
     const nickname = document.getElementById("modal-register-nickname").value.trim();
-    const email = document.getElementById("modal-register-email").value.trim().toLowerCase();
     const role = document.getElementById("modal-register-role").value;
     const password = document.getElementById("modal-register-password").value;
     const passwordRepeat = document.getElementById("modal-register-password-repeat").value;
 
-    if (!nickname || !email || !role || !password || !passwordRepeat) {
+    if (!nickname || !role || !password || !passwordRepeat) {
         setAuthStatus(registerMessage, "Заполните все поля.", "error");
         return;
     }
@@ -203,29 +203,137 @@ registerForm.addEventListener("submit", async (event) => {
     setAuthStatus(registerMessage, "Аккаунт создан (заглушка).", "success");
 });
 
-async function mockLogin(email, password) {
-    await wait(450);
+const API_BASE = 'http://127.0.0.1:8000/';
 
-    if (email === "demo@zavozik.ru" && password === "123456") {
-        return { ok: true };
+
+
+async function apiRequest(endpoint, options = {}) {
+    const token = localStorage.getItem('token');
+    const config = {
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` })
+        },
+        ...options
+    };
+    
+    const response = await fetch(`${API_BASE}${endpoint}`, config);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || error.message || 'Ошибка сервера');
     }
-
-    return { ok: false, message: "Неверный логин или пароль." };
+    return response.json();
 }
+
 
 async function mockRegister(nickname) {
-    await wait(650);
-
-    if (nickname.length < 3) {
-        return { ok: false, message: "Никнейм должен быть не короче 3 символов." };
+    try {
+        const role = document.getElementById("modal-register-role").value;
+        const password = document.getElementById("modal-register-password").value;
+        const passwordRepeat = document.getElementById("modal-register-password-repeat").value;
+        
+        const data = {
+            username: nickname,
+            password: password,
+            password_confirm: passwordRepeat,
+            role: role  // student/teacher/parent
+        };
+        
+        await apiRequest('/auth/register/', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        
+        setAuthStatus(registerMessage, "Аккаунт создан! Можете войти.", "success");
+        setTimeout(() => setAuthMode('login'), 1500);  // Переключить на login
+        return { ok: true };
+    } catch (error) {
+        setAuthStatus(registerMessage, error.message, "error");
+        return { ok: false, message: error.message };
     }
-
-    return { ok: true };
 }
 
-function wait(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+
+// ИСПРАВЛЕННЫЙ вход
+async function mockLogin(username, password) {
+    try {
+        const data = {
+            username: username,  
+            password: password
+        };
+        
+        const authResponse = await apiRequest('/auth/token/', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        
+        localStorage.setItem('token', authResponse.access);
+        localStorage.setItem('refresh', authResponse.refresh);
+        
+        // Получить профиль пользователя
+        const profile = await apiRequest('/auth/profile/');
+        
+        // ПОКАЗАТЬ ПРОФИЛЬ (добавь в HTML!)
+        showUserProfile(profile.username, profile.level);
+        
+        closeAuthModal();
+        setAuthStatus(loginMessage, `Добро пожаловать, ${profile.username}!`, "success");
+        return { ok: true };
+    } catch (error) {
+        return { ok: false, message: error.message };
+    }
 }
+
+// Функция показа профиля в хедере
+function showUserProfile(username, level) {
+    // Если нет элемента — создаём!
+    let profileEl = document.getElementById('user-profile');
+    if (!profileEl) {
+        profileEl = document.createElement('div');
+        profileEl.id = 'user-profile';
+        profileEl.className = 'user-profile';
+        profileEl.innerHTML = `
+            <span>${username} | Lv.${level}</span>
+            <button id="logout-btn" class="btn btn-nav btn-small">Выйти</button>
+        `;
+        document.querySelector('.auth-buttons').parentNode.appendChild(profileEl);
+    } else {
+        profileEl.querySelector('span').textContent = `${username} | Lv.${level}`;
+    }
+    
+    profileEl.style.display = 'flex';
+    document.querySelector('.auth-buttons').style.display = 'none';
+    
+    // Logout listener
+    document.getElementById('logout-btn')?.addEventListener('click', logout);
+}
+
+
+// Logout функция
+function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh');
+    
+    const profileEl = document.getElementById('user-profile');
+    if (profileEl) profileEl.remove();
+    
+    document.querySelector('.auth-buttons').style.display = 'flex';
+}
+
+
+// Auto-login при загрузке
+window.addEventListener('load', async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        try {
+            const profile = await apiRequest('/auth/profile/');
+            showUserProfile(profile.username, profile.level);
+        } catch (error) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refresh');
+        }
+    }
+});
 
 setAuthMode("login");
 authModal.setAttribute("aria-hidden", "true");

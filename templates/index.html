@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Завозик - Главная</title>
-    <link rel="stylesheet" href="style_nousr.css">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style_nousr.css' %}">
 </head>
 <body>
     <!-- Header -->
@@ -45,7 +46,7 @@
                 <div class="courses-grid">
                     <!-- Python Course -->
                     <div class="course-card-main">
-                        <img src="images/python.png" alt="Python" class="course-emoji" width="100" height="100">
+                        <img src="static/images/python.png" alt="Python" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">Python</h3>
                         <p class="course-desc">Легкий старт</p>
                         <div class="course-level">Возраст 7-11</div>
@@ -54,7 +55,7 @@
 
                     <!-- Java Course -->
                     <div class="course-card-main">
-                        <img src="images/java.png" alt="Java" class="course-emoji" width="100" height="100">
+                        <img src="static/images/java.png" alt="Java" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">Java</h3>
                         <p class="course-desc">Создавай приложения</p>
                         <div class="course-level">Возраст 10-13</div>
@@ -63,7 +64,7 @@
 
                     <!-- C++ Course -->
                     <div class="course-card-main">
-                        <img src="images/С++.png" alt="C++" class="course-emoji" width="100" height="100">
+                        <img src="static/images/С++.png" alt="C++" class="course-emoji" width="100" height="100">
                         <h3 class="course-title">C&#43;&#43;</h3>
                         <p class="course-desc">Прокачай логику</p>
                         <div class="course-level">Возраст 12-15</div>
@@ -104,8 +105,8 @@
             <form class="auth-modal__form is-active" data-auth-panel="login" autocomplete="on">
                 <h2 class="auth-modal__title">Вход в аккаунт</h2>
 
-                <label class="auth-modal__label" for="modal-login-email">Электронная почта</label>
-                <input class="auth-modal__input" id="modal-login-email" type="email" placeholder="example@mail.ru" required>
+                <label class="auth-modal__label" for="modal-login-username">Никнейм</label>
+                <input class="auth-modal__input" id="modal-login-username" type="text" placeholder="Ваш никнейм" required>
 
                 <label class="auth-modal__label" for="modal-login-password">Пароль</label>
                 <input class="auth-modal__input" id="modal-login-password" type="password" placeholder="Введите пароль" required>
@@ -122,9 +123,6 @@
 
                 <label class="auth-modal__label" for="modal-register-nickname">Никнейм</label>
                 <input class="auth-modal__input" id="modal-register-nickname" type="text" minlength="3" maxlength="25" placeholder="Твой ник" required>
-
-                <label class="auth-modal__label" for="modal-register-email">Электронная почта</label>
-                <input class="auth-modal__input" id="modal-register-email" type="email" placeholder="example@mail.ru" required>
 
                 <label class="auth-modal__label" for="modal-register-role">Я</label>
                 <select class="auth-modal__input" id="modal-register-role" required>
@@ -147,6 +145,6 @@
         </section>
     </div>
 
-    <script src="script_nousr.js"></script>
+    <script src="{% static 'js/script_nousr.js' %}"></script>
 </body>
 </html>
