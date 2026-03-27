@@ -180,10 +180,11 @@ registerForm.addEventListener("submit", async (event) => {
 
     const nickname = document.getElementById("modal-register-nickname").value.trim();
     const email = document.getElementById("modal-register-email").value.trim().toLowerCase();
+    const role = document.getElementById("modal-register-role").value;
     const password = document.getElementById("modal-register-password").value;
     const passwordRepeat = document.getElementById("modal-register-password-repeat").value;
 
-    if (!nickname || !email || !password || !passwordRepeat) {
+    if (!nickname || !email || !role || !password || !passwordRepeat) {
         setAuthStatus(registerMessage, "Заполните все поля.", "error");
         return;
     }

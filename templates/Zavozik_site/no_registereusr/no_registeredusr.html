@@ -126,6 +126,14 @@
                 <label class="auth-modal__label" for="modal-register-email">Электронная почта</label>
                 <input class="auth-modal__input" id="modal-register-email" type="email" placeholder="example@mail.ru" required>
 
+                <label class="auth-modal__label" for="modal-register-role">Я</label>
+                <select class="auth-modal__input" id="modal-register-role" required>
+                    <option value="" selected disabled>Выберите роль</option>
+                    <option value="teacher">учитель</option>
+                    <option value="student">ученик</option>
+                    <option value="parent">родитель</option>
+                </select>
+
                 <label class="auth-modal__label" for="modal-register-password">Пароль</label>
                 <input class="auth-modal__input" id="modal-register-password" type="password" minlength="6" placeholder="Не менее 6 символов" required>
 
