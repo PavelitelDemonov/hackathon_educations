@@ -13,6 +13,22 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     });
 });
 
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+
 // ========== Add animation on scroll =========
 const observerOptions = {
     threshold: 0.1,
@@ -203,7 +219,7 @@ registerForm.addEventListener("submit", async (event) => {
     setAuthStatus(registerMessage, "Аккаунт создан (заглушка).", "success");
 });
 
-const API_BASE = 'http://127.0.0.1:8000/';
+
 
 
 
@@ -212,12 +228,14 @@ async function apiRequest(endpoint, options = {}) {
     const config = {
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
             ...(token && { Authorization: `Bearer ${token}` })
         },
-        ...options
+        ...options,
+        credentials: 'include'
     };
     
-    const response = await fetch(`${API_BASE}${endpoint}`, config);
+    const response = await fetch(endpoint, config);  
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || error.message || 'Ошибка сервера');
