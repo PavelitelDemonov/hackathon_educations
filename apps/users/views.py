@@ -26,7 +26,7 @@ class RegisterView(generics.CreateAPIView):
             "message": "Регистрация пользователя прошла успешно",
             "user_id": user.id,
             'role': user.role
-        }, status=status.HTTP_201_CREATED, headers=headers) 
+        }, status=status.HTTP_201_CREATED, headers=headers)
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
