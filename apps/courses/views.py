@@ -33,7 +33,7 @@ class ModuleDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
 
 class LessonListView(generics.ListAPIView):
-    serializer_class = ModuleSerializer
+    serializer_class = LessonSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):

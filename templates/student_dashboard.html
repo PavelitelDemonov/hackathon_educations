@@ -79,6 +79,28 @@
                 <p class="tasks-subtitle">Выберите модуль. Список модулей подбирается под активный язык.</p>
                 <div class="student-modules-grid" id="student-modules-list"></div>
                 <div class="student-note" id="student-modules-empty" hidden>Для этого языка пока нет модулей.</div>
+
+                <section class="lesson-viewer" id="student-lesson-viewer" hidden>
+                    <div class="lesson-viewer__top">
+                        <h3 class="lesson-viewer__module" id="lesson-module-name">Модуль</h3>
+                        <p class="lesson-viewer__counter" id="lesson-counter">Урок 0 из 0</p>
+                    </div>
+
+                    <div class="lesson-viewer__layout">
+                        <aside class="lesson-list" id="lesson-list"></aside>
+
+                        <article class="lesson-card">
+                            <h4 class="lesson-card__title" id="lesson-title">Выберите модуль</h4>
+                            <div class="lesson-card__content" id="lesson-content">
+                                После выбора модуля здесь появится текст урока.
+                            </div>
+                            <div class="lesson-card__actions">
+                                <button class="btn btn-nav lesson-nav-btn" id="lesson-prev-btn" type="button">Назад</button>
+                                <button class="btn btn-primary lesson-nav-btn" id="lesson-next-btn" type="button">Далее</button>
+                            </div>
+                        </article>
+                    </div>
+                </section>
             </div>
         </section>
     </main>
