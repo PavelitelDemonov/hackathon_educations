@@ -17,9 +17,15 @@ from .serializer import ModuleSerializer, LessonSerializer, UserProgressSerializ
 # Create your views here.
 
 class ModuleListView(generics.ListAPIView):
-    queryset = Module.objects.all()
     serializer_class = ModuleSerializer
     permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = Module.objects.all()
+        language = self.request.query_params.get('language')
+        if language:
+            queryset = queryset.filter(language__iexact=language.strip())
+        return queryset
 
 class ModuleDetailView(generics.RetrieveAPIView):
     queryset = Module.objects.all()
@@ -27,7 +33,7 @@ class ModuleDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
 
 class LessonListView(generics.ListAPIView):
-    serializer_class = ModuleSerializer
+    serializer_class = LessonSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):

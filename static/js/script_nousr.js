@@ -272,6 +272,11 @@ async function mockLogin(username, password) {
         
         // Получить профиль пользователя
         const profile = await apiRequest('/auth/profile/');
+
+        if (profile.role === 'student') {
+            window.location.assign('/student/');
+            return { ok: true };
+        }
         
         // ПОКАЗАТЬ ПРОФИЛЬ (добавь в HTML!)
         showUserProfile(profile.username, profile.level);
@@ -327,6 +332,10 @@ window.addEventListener('load', async () => {
     if (token) {
         try {
             const profile = await apiRequest('/auth/profile/');
+            if (profile.role === 'student') {
+                window.location.assign('/student/');
+                return;
+            }
             showUserProfile(profile.username, profile.level);
         } catch (error) {
             localStorage.removeItem('token');
