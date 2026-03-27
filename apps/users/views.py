@@ -5,9 +5,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 
 from .serializers import RegisterSerializers, ProfileSerializer, LoginSerializer, CustomTokenObtainPairView
-from .models import User
 from .permissions import IsStudent, IsTeacher, IsAdmin
 
+from .models import User
 
 
 class RegisterView(generics.CreateAPIView):
