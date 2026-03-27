@@ -201,6 +201,32 @@ lessonListEl.addEventListener("click", (event) => {
     }
 });
 
+lessonContentEl.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest(".md-code-copy");
+    if (!copyButton) {
+        return;
+    }
+
+    const codeEl = copyButton.closest(".md-code-block")?.querySelector("code");
+    if (!codeEl) {
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(codeEl.textContent || "");
+        const prevLabel = copyButton.textContent;
+        copyButton.textContent = "Скопировано";
+        setTimeout(() => {
+            copyButton.textContent = prevLabel;
+        }, 1200);
+    } catch (error) {
+        copyButton.textContent = "Не удалось";
+        setTimeout(() => {
+            copyButton.textContent = "Копировать";
+        }, 1200);
+    }
+});
+
 async function fetchProfile() {
     const response = await fetch("/auth/profile/", {
         headers: {
@@ -394,6 +420,143 @@ function parseLessonSections(rawContent) {
     return [{ title: "Описание", text: content }];
 }
 
+function renderInlineMarkdown(rawText) {
+    const placeholders = [];
+    let text = String(rawText || "");
+
+    text = text.replace(/`([^`\n]+)`/g, (_, codeText) => {
+        const key = `__INLINE_CODE_${placeholders.length}__`;
+        placeholders.push(`<code class="md-inline-code">${escapeHtml(codeText)}</code>`);
+        return key;
+    });
+
+    text = escapeHtml(text);
+
+    text = text.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    text = text.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    placeholders.forEach((replacement, index) => {
+        const key = `__INLINE_CODE_${index}__`;
+        text = text.replace(key, replacement);
+    });
+
+    return text;
+}
+
+function formatCodeLanguageLabel(lang) {
+    const key = normalizeLanguageKey(lang);
+    if (!key) {
+        return String(lang || "code");
+    }
+    return LANGUAGE_CONFIG[key]?.label || key;
+}
+
+function renderMarkdownToHtml(rawMarkdown) {
+    let text = String(rawMarkdown || "").replace(/\r\n/g, "\n");
+    if (!text.includes("\n") && text.includes("\\n")) {
+        text = text.replace(/\\n/g, "\n");
+    }
+    const lines = text.split("\n");
+    const html = [];
+    let index = 0;
+
+    function isBlank(line) {
+        return !line || !line.trim();
+    }
+
+    while (index < lines.length) {
+        const line = lines[index];
+
+        if (isBlank(line)) {
+            index += 1;
+            continue;
+        }
+
+        const codeStart = line.match(/^\s*```([\w#+-]*)\s*$/);
+        if (codeStart) {
+            const langRaw = codeStart[1] || "";
+            const codeLines = [];
+            index += 1;
+            while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) {
+                codeLines.push(lines[index]);
+                index += 1;
+            }
+            if (index < lines.length && /^\s*```\s*$/.test(lines[index])) {
+                index += 1;
+            }
+
+            const codeHtml = escapeHtml(codeLines.join("\n"));
+            const langClass = langRaw ? ` language-${escapeHtml(langRaw.toLowerCase())}` : "";
+            const langLabel = formatCodeLanguageLabel(langRaw);
+
+            html.push(`
+                <div class="md-code-block">
+                    <div class="md-code-header">
+                        <span class="md-code-lang">${escapeHtml(langLabel)}</span>
+                        <button class="md-code-copy" type="button">Копировать</button>
+                    </div>
+                    <pre class="md-code-pre"><code class="md-code${langClass}">${codeHtml}</code></pre>
+                </div>
+            `);
+            continue;
+        }
+
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+        if (headingMatch) {
+            const level = Math.min(6, headingMatch[1].length + 2);
+            html.push(`<h${level} class="md-heading md-heading-${level}">${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+            index += 1;
+            continue;
+        }
+
+        if (/^>\s?/.test(line)) {
+            const quoteLines = [];
+            while (index < lines.length && /^>\s?/.test(lines[index])) {
+                quoteLines.push(lines[index].replace(/^>\s?/, ""));
+                index += 1;
+            }
+            html.push(`<blockquote class="md-quote">${renderInlineMarkdown(quoteLines.join(" "))}</blockquote>`);
+            continue;
+        }
+
+        if (/^[-*+]\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^[-*+]\s+/.test(lines[index])) {
+                items.push(lines[index].replace(/^[-*+]\s+/, ""));
+                index += 1;
+            }
+            html.push(`<ul class="md-list">${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+            continue;
+        }
+
+        if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
+                items.push(lines[index].replace(/^\d+\.\s+/, ""));
+                index += 1;
+            }
+            html.push(`<ol class="md-list md-list-ordered">${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ol>`);
+            continue;
+        }
+
+        const paragraphLines = [];
+        while (index < lines.length && !isBlank(lines[index]) &&
+            !/^```/.test(lines[index]) &&
+            !/^(#{1,6})\s+/.test(lines[index]) &&
+            !/^>\s?/.test(lines[index]) &&
+            !/^[-*+]\s+/.test(lines[index]) &&
+            !/^\d+\.\s+/.test(lines[index])) {
+            paragraphLines.push(lines[index]);
+            index += 1;
+        }
+        html.push(`<p class="md-paragraph">${renderInlineMarkdown(paragraphLines.join(" "))}</p>`);
+    }
+
+    return html.join("");
+}
+
 function renderLessonContent(sections, videoUrl) {
     lessonContentEl.innerHTML = "";
 
@@ -415,20 +578,10 @@ function renderLessonContent(sections, videoUrl) {
 
         const text = String(section.text || "").trim();
         if (text) {
-            const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-            if (paragraphs.length) {
-                paragraphs.forEach((paragraph) => {
-                    const p = document.createElement("p");
-                    p.className = "lesson-section__text";
-                    p.textContent = paragraph;
-                    block.appendChild(p);
-                });
-            } else {
-                const p = document.createElement("p");
-                p.className = "lesson-section__text";
-                p.textContent = text;
-                block.appendChild(p);
-            }
+            const body = document.createElement("div");
+            body.className = "lesson-section__body";
+            body.innerHTML = renderMarkdownToHtml(text);
+            block.appendChild(body);
         }
 
         lessonContentEl.appendChild(block);
