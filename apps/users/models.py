@@ -19,6 +19,7 @@ class User(AbstractUser):
         import math
         return max(1, int(math.sqrt(self.experience / 100))) #переделать
 
+
     def add_experience(self, points):
         self.experience += points
         self.level = self.calculate_level()

@@ -3,6 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.password_validation import validate_password
 
 from .models import User
 
@@ -15,6 +16,9 @@ class RegisterSerializers(serializers.ModelSerializer):
         model = User
         fields = ['username', 'password', 'password_confirm', 'role'] 
     
+    def create(self, validated_data):
+       return User.objects.create_user(**validated_data)
+
     def validate_role(self, value):
         allowed_roles = ['student', 'parent']
         if value not in allowed_roles:
@@ -57,3 +61,4 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    password = serializers.CharField(write_only=True)

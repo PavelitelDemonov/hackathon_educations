@@ -9,7 +9,7 @@ app_name = 'users'
 
 urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='auth_register'),
-    path('token/', views.LoginView.as_view(), name='token_obtain_pair'),
+    #path('token/', views.LoginView.as_view(), name='token_obtain_pair'),
     path('profile/', views.ProfileView.as_view(), name ="profile"),
 
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
