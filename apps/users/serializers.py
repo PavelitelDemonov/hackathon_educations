@@ -1,5 +1,10 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.password_validation import validate_password
+
 from .models import User
 
 
@@ -13,7 +18,7 @@ class RegisterSerializers(serializers.ModelSerializer):
     
     def create(self, validated_data):
        return User.objects.create_user(**validated_data)
-    
+
     def validate_role(self, value):
         allowed_roles = ['student', 'parent']
         if value not in allowed_roles:
@@ -42,4 +47,18 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField() 
+    password = serializers.CharField(write_only=True)
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Добавляем role/level в JWT payload!
+        token['role'] = user.role
+        token['level'] = user.level # проверить что будет с пользователем если ты поменяешь роль или уровень вне авторизации пользователя
+        token['username'] = user.username
+        return token    
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
     password = serializers.CharField(write_only=True)

@@ -3,7 +3,10 @@ from rest_framework.permissions import IsAuthenticated , AllowAny, IsAdminUser
 from rest_framework import generics, status, viewsets
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
-from .serializers import RegisterSerializers, ProfileSerializer, LoginSerializer
+
+from .serializers import RegisterSerializers, ProfileSerializer, LoginSerializer, CustomTokenObtainPairView
+from .permissions import IsStudent, IsTeacher, IsAdmin
+
 from .models import User
 
 
@@ -24,25 +27,6 @@ class RegisterView(generics.CreateAPIView):
             "user_id": user.id,
             'role': user.role
         }, status=status.HTTP_201_CREATED, headers=headers) 
-    
-"""
-class ProtectedView(RoleRequiredMixin,APIView):
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-    
-    def get(self, request):
-        user = request.user
-        return Response({
-            "message": "This is a protected endpoint by manager",
-            "user_id": user.id,
-            "username": user.email,
-            "is_authenticated": user.is_authenticated,
-            'role': user.role,
-            'data': 'Ваши защищенные данные здесь'
-        })
-"""
-class AdminModuleViewSet(viewsets.ModelViewSet):
-    permission_classes =[IsAdminUser]
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -59,4 +43,61 @@ class ProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+class LoginView(CustomTokenObtainPairView):
+    pass
+
+class StudentDashboard(APIView):
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    def get(self, request):
+        return Response({
+            "message": "Студенческая панель",
+            "user": {
+                "username": request.user.username,
+                "level": request.user.level,
+                "xp": request.user.experience
+            }
+        })
+    
+class TeacherDashboard(APIView):
+    permission_classes = [IsAuthenticated, IsTeacher]
+    
+    def get(self, request):
+        return Response({
+            "message": "Панель учителя",
+            "students_count": User.objects.filter(role='student').count()
+        })
+
+class AdminDashboard(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def get(self, request):
+        return Response({
+            "message": "Админ панель",
+            "total_users": User.objects.count(),
+            "user_roles": dict(User.objects.values_list('role').annotate(count=Count('role')))
+        })
+    
+
+class LoginView(CustomTokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+
+        if response.data.get('access'):
+            response.set_cookie(
+                'access_token',
+                response.data['access'],
+                max_age=60*60*24,
+                httponly=True,
+                samesite='Lax',
+                secure=True     #поменять на False на прод
+            )
+            response.set_cookie(
+                'refresh_token',
+                response.data['refresh'],
+                max_age=60*60*24*7,
+                httponly=True,
+                samesite='Lax'
+            )
+        return response
     

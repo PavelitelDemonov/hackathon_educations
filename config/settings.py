@@ -49,7 +49,9 @@ INSTALLED_APPS = [
     'rest_framework',                    
     'rest_framework_simplejwt', 
              
-    'apps.users'
+    'apps.users',
+    'apps.courses',
+    
 ]
 
 MIDDLEWARE = [
@@ -92,6 +94,17 @@ REST_FRAMEWORK = {
     ],
     
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000"
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = False
+
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
