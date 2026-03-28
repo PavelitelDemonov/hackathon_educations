@@ -47,6 +47,12 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def validate_child_username(self, value):
         normalized = str(value or "").strip()
+        request = self.context.get("request")
+        actor = getattr(request, "user", None) or self.instance
+        actor_role = getattr(actor, "role", "")
+
+        if normalized and actor_role != "parent":
+            raise serializers.ValidationError("Поле ребёнка доступно только родителю.")
         if self.instance and normalized and normalized == self.instance.username:
             raise serializers.ValidationError("Нельзя указать себя как ребёнка.")
         return normalized

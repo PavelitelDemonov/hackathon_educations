@@ -8,7 +8,6 @@ const profileLabelEl = document.getElementById("parent-profile-label");
 const profileMenuEl = document.getElementById("parent-profile-menu-list");
 const openProfileBtn = document.getElementById("parent-profile-open");
 const logoutBtn = document.getElementById("parent-logout-btn");
-const refreshBtn = document.getElementById("parent-refresh-btn");
 
 const childNameEl = document.getElementById("parent-child-name");
 const childLevelEl = document.getElementById("parent-child-level");
@@ -408,15 +407,6 @@ openProfileBtn?.addEventListener("click", () => {
 
 logoutBtn?.addEventListener("click", () => {
     clearAuthAndRedirect();
-});
-
-refreshBtn?.addEventListener("click", async () => {
-    refreshBtn.disabled = true;
-    try {
-        await refreshDashboardData();
-    } finally {
-        refreshBtn.disabled = false;
-    }
 });
 
 profileModalCloseEls.forEach((button) => {

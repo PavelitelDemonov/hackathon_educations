@@ -17,6 +17,7 @@ BASE_ACHIEVEMENTS = [
     {"code": "slides_30", "name": "30 слайдов пройдено", "xp_required": 0},
     {"code": "first_lesson", "name": "Первый урок завершён", "xp_required": 0},
     {"code": "first_module", "name": "Первый модуль завершён", "xp_required": 0},
+    {"code": "pvz_cup", "name": "Где мои семена, Дейв?", "xp_required": 0},
     {"code": "level_2", "name": "Уровень 2 достигнут", "xp_required": 100},
     {"code": "level_5", "name": "Уровень 5 достигнут", "xp_required": 700},
 ]

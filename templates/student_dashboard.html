@@ -28,6 +28,7 @@
                     </div>
                     <button class="btn btn-nav is-active-tab" id="tab-home" type="button">Главная</button>
                     <button class="btn btn-nav" id="tab-tasks" type="button">Задания</button>
+                    <button class="btn btn-nav" id="tab-achievements" type="button">Достижения</button>
                     <button class="btn btn-nav" type="button">Контакты</button>
                 </nav>
                 <div class="auth-buttons">
@@ -57,6 +58,11 @@
                         Текущий язык: <strong id="hero-language">Python</strong>. По каждому языку позже подключим отдельные задания.
                     </p>
                 </div>
+                <div class="student-easter-egg" id="student-easter-egg" aria-hidden="false">
+                    <button class="student-easter-egg__button" id="pvz-trophy-btn" type="button" aria-label="Секретный кубок">
+                        <img src="{% static 'images/pvz-transparent.png' %}" alt="" class="student-easter-egg__image">
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -77,11 +83,14 @@
                         <p id="student-experience">-</p>
                     </article>
                 </div>
-                <div class="student-note">
-                    Главная страница пока показывает только уровень и опыт, как ты и просил.
-                </div>
+            </div>
+        </section>
+
+        <section class="available-courses student-summary panel-achievements" id="panel-achievements" hidden>
+            <div class="container">
+                <h2 class="section-title">Достижения</h2>
                 <section class="student-achievements" id="student-achievements-panel">
-                    <h3 class="student-achievements__title">Достижения</h3>
+                    <h3 class="student-achievements__title">Коллекция достижений</h3>
                     <div class="student-achievements__grid" id="student-achievements-grid"></div>
                 </section>
             </div>
@@ -160,10 +169,6 @@
                     <label class="profile-form__field">
                         <span>Email</span>
                         <input class="profile-form__input" id="profile-email" type="email" maxlength="254" placeholder="example@mail.com">
-                    </label>
-                    <label class="profile-form__field" id="profile-child-field" hidden>
-                        <span>Ник ребёнка</span>
-                        <input class="profile-form__input" id="profile-child-username" type="text" maxlength="150" placeholder="Введите ник ученика">
                     </label>
                     <label class="profile-form__field">
                         <span>Роль</span>

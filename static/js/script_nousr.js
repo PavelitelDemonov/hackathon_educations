@@ -215,8 +215,10 @@ registerForm.addEventListener("submit", async (event) => {
         setAuthStatus(registerMessage, response.message, "error");
         return;
     }
-
-    setAuthStatus(registerMessage, "Аккаунт создан (заглушка).", "success");
+    setAuthMode("login");
+    document.getElementById("modal-login-username").value = nickname;
+    document.getElementById("modal-login-password").value = "";
+    setAuthStatus(loginMessage, "Регистрация успешна. Теперь войдите в аккаунт.", "success");
 });
 
 
@@ -259,12 +261,9 @@ async function mockRegister(nickname) {
             method: 'POST',
             body: JSON.stringify(data)
         });
-        
-        setAuthStatus(registerMessage, "Аккаунт создан! Можете войти.", "success");
-        setTimeout(() => setAuthMode('login'), 1500);  // Переключить на login
+
         return { ok: true };
     } catch (error) {
-        setAuthStatus(registerMessage, error.message, "error");
         return { ok: false, message: error.message };
     }
 }

@@ -16,6 +16,8 @@ const parentProgressNoteEl = document.getElementById("parent-progress-note");
 const achievementsPanelEl = document.getElementById("student-achievements-panel");
 const achievementsGridEl = document.getElementById("student-achievements-grid");
 const achievementToastStackEl = document.getElementById("achievement-toast-stack");
+const pvzTrophySectionEl = document.getElementById("student-easter-egg");
+const pvzTrophyBtn = document.getElementById("pvz-trophy-btn");
 
 const usernameEl = document.getElementById("student-username");
 const levelEl = document.getElementById("student-level");
@@ -30,7 +32,9 @@ const profileMenuProfileBtn = document.getElementById("profile-menu-profile");
 const profileMenuLogoutBtn = document.getElementById("profile-menu-logout");
 const homeTab = document.getElementById("tab-home");
 const tasksTab = document.getElementById("tab-tasks");
+const achievementsTab = document.getElementById("tab-achievements");
 const homePanels = document.querySelectorAll(".panel-home");
+const achievementsPanel = document.getElementById("panel-achievements");
 const tasksPanel = document.getElementById("panel-tasks");
 const modulesListEl = document.getElementById("student-modules-list");
 const modulesEmptyEl = document.getElementById("student-modules-empty");
@@ -106,6 +110,7 @@ let achievementsCache = [];
 const shownAchievementToastCodes = new Set();
 let lessonProgressStatusMessage = "";
 const VIEWED_SLIDES_STORAGE_PREFIX = "student_viewed_slides_v1";
+const ACHIEVEMENT_SOUND_URL = "/static/music/achievement-unlock.mp3";
 let viewedSlidesStorageLoadedFor = "";
 let localSlidesSyncDoneForStorageKey = "";
 let currentProfile = null;
@@ -124,6 +129,7 @@ let avatarEditorDragStartX = 0;
 let avatarEditorDragStartY = 0;
 let avatarEditorDragStartOffsetX = 0;
 let avatarEditorDragStartOffsetY = 0;
+let achievementSoundEl = null;
 
 function clearAuthAndRedirect() {
     localStorage.removeItem("token");
@@ -329,6 +335,12 @@ function applyRoleUi(role) {
     if (achievementsPanelEl) {
         achievementsPanelEl.hidden = isParentMode;
     }
+    if (achievementsTab) {
+        achievementsTab.hidden = isParentMode;
+    }
+    if (pvzTrophySectionEl) {
+        pvzTrophySectionEl.hidden = isParentMode;
+    }
     if (!isParentMode) {
         setParentProgressNote("");
     }
@@ -336,6 +348,30 @@ function applyRoleUi(role) {
 
 function normalizeAchievementCode(rawCode) {
     return String(rawCode || "").trim().toLowerCase();
+}
+
+function playAchievementSound() {
+    if (isParentMode) {
+        return;
+    }
+
+    if (!achievementSoundEl) {
+        achievementSoundEl = new Audio(ACHIEVEMENT_SOUND_URL);
+        achievementSoundEl.preload = "auto";
+        achievementSoundEl.volume = 0.75;
+    }
+
+    try {
+        achievementSoundEl.currentTime = 0;
+        const playPromise = achievementSoundEl.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch(() => {
+                // Браузер может блокировать автозвук без действия пользователя.
+            });
+        }
+    } catch (error) {
+        // Ошибка проигрывания не должна ломать интерфейс.
+    }
 }
 
 function showAchievementToast(achievement) {
@@ -350,6 +386,8 @@ function showAchievementToast(achievement) {
     if (code) {
         shownAchievementToastCodes.add(code);
     }
+
+    playAchievementSound();
 
     const toast = document.createElement("article");
     toast.className = "achievement-toast";
@@ -1224,18 +1262,53 @@ profileFormEl?.addEventListener("submit", async (event) => {
     }
 });
 
+pvzTrophyBtn?.addEventListener("click", async () => {
+    if (isParentMode) {
+        return;
+    }
+
+    pvzTrophyBtn.disabled = true;
+    playAchievementSound();
+
+    try {
+        const payload = await unlockPvzCupAchievement();
+        applyNewAchievements(payload?.new_achievements);
+        applyUserXpFromPayload(payload?.user);
+
+        try {
+            achievementsCache = await fetchAchievements();
+            renderAchievements(achievementsCache);
+        } catch (refreshError) {
+            // Ошибка обновления списка достижений не критична для пасхалки.
+        }
+    } catch (error) {
+        // Текстовых подсказок на главной не показываем.
+    } finally {
+        pvzTrophyBtn.disabled = false;
+    }
+});
+
 function setActiveTab(tabName) {
-    const isHome = tabName === "home";
+    const safeTab = String(tabName || "home");
+    const isHome = safeTab === "home";
+    const isTasks = safeTab === "tasks";
+    const isAchievements = safeTab === "achievements" && !isParentMode;
 
     homeTab.classList.toggle("is-active-tab", isHome);
-    tasksTab.classList.toggle("is-active-tab", !isHome);
+    tasksTab.classList.toggle("is-active-tab", isTasks);
+    if (achievementsTab) {
+        achievementsTab.classList.toggle("is-active-tab", isAchievements);
+    }
 
     homePanels.forEach((section) => {
         section.hidden = !isHome;
     });
-    tasksPanel.hidden = isHome;
+    tasksPanel.hidden = !isTasks;
+    if (achievementsPanel) {
+        achievementsPanel.hidden = !isAchievements;
+    }
 
-    if (!isHome) {
+    if (isTasks) {
         renderModulesForActiveLanguage();
     }
 }
@@ -1246,6 +1319,10 @@ homeTab.addEventListener("click", () => {
 
 tasksTab.addEventListener("click", () => {
     setActiveTab("tasks");
+});
+
+achievementsTab?.addEventListener("click", () => {
+    setActiveTab("achievements");
 });
 
 modulesListEl.addEventListener("click", (event) => {
@@ -1442,6 +1519,23 @@ async function fetchParentChildProgress() {
     }
 
     return response.json();
+}
+
+async function unlockPvzCupAchievement() {
+    const response = await authFetch("/auth/courses/achievements/pvz-cup/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const detail = payload?.error || payload?.detail || "Не удалось открыть достижение";
+        throw new Error(detail);
+    }
+
+    return payload;
 }
 
 async function syncLocalViewedSlidesToServer() {
@@ -2050,7 +2144,8 @@ function renderLessonProgressOverview() {
         chip.type = "button";
         chip.className = "lesson-progress-chip";
         chip.dataset.slideIndex = String(index);
-        chip.textContent = String(index + 1);
+        chip.setAttribute("aria-label", `Слайд ${index + 1}`);
+        chip.title = `Слайд ${index + 1}`;
 
         if (viewedSlides.has(index)) {
             chip.classList.add("is-completed");
@@ -2270,7 +2365,7 @@ function renderLessonList() {
         item.dataset.lessonIndex = String(index);
         const title = escapeHtml(lesson.title || "Без названия");
         const marker = completedLessonIds.has(lesson.id) ? '<span class="lesson-list-item__done">✓</span>' : "";
-        item.innerHTML = `${index + 1}. ${title}${marker}`;
+        item.innerHTML = `${title}${marker}`;
         lessonListEl.appendChild(item);
     });
 }

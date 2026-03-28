@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -7,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
-from .models import Achievement, Lesson, Module, UserAchievement, UserProgress
+from .models import Achievement, Lesson, LessonStep, Module, UserAchievement, UserProgress, UserStepProgress
 from .progress_services import (
     MODULE_XP as DEFAULT_MODULE_XP,
     SLIDE_XP as DEFAULT_SLIDE_XP,
@@ -16,7 +17,12 @@ from .progress_services import (
     lesson_slides_count,
     normalize_viewed_slide_indexes,
 )
-from .serializer import LessonSerializer, ModuleSerializer, UserProgressSerializer
+from .serializer import (
+    LessonSerializer,
+    LessonStepWithProgressSerializer,
+    ModuleSerializer,
+    UserProgressSerializer,
+)
 
 
 class ModuleListView(generics.ListAPIView):
@@ -50,6 +56,171 @@ class LessonDetailView(generics.RetrieveAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
     permission_classes = [AllowAny]
+
+
+class LessonStepListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, lesson_id):
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+        steps = LessonStep.objects.filter(lesson=lesson).order_by("order", "id")
+        progress_map = {
+            item.step_id: item
+            for item in UserStepProgress.objects.filter(user=request.user, step__lesson=lesson).select_related("step")
+        }
+        data = LessonStepWithProgressSerializer(
+            steps,
+            many=True,
+            context={"progress_map": progress_map},
+        ).data
+        return Response(
+            {
+                "lesson_id": lesson.id,
+                "steps": data,
+            }
+        )
+
+
+class SubmitLessonStepAttemptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _normalize_list(self, raw_value):
+        if not isinstance(raw_value, list):
+            return []
+        normalized = []
+        for item in raw_value:
+            text = str(item).strip()
+            if text:
+                normalized.append(text)
+        return normalized
+
+    def _sync_lesson_completion_from_steps(self, user, lesson):
+        required_steps = LessonStep.objects.filter(lesson=lesson, is_required=True)
+        required_total = required_steps.count()
+        if required_total <= 0:
+            return False
+
+        completed_required = (
+            UserStepProgress.objects.filter(
+                user=user,
+                step__in=required_steps,
+                completed=True,
+            )
+            .values("step_id")
+            .distinct()
+            .count()
+        )
+        if completed_required < required_total:
+            return False
+
+        progress = UserProgress.objects.filter(user=user, lesson=lesson).order_by("id").first()
+        if progress is None:
+            progress = UserProgress.objects.create(user=user, module=lesson.module, lesson=lesson, completed=True)
+            return True
+
+        update_fields = []
+        if progress.module_id != lesson.module_id:
+            progress.module = lesson.module
+            update_fields.append("module")
+        if not progress.completed:
+            progress.completed = True
+            update_fields.append("completed")
+        if update_fields:
+            progress.save(update_fields=update_fields)
+            return True
+        return False
+
+    def post(self, request, step_id):
+        if request.user.role != "student":
+            return Response({"detail": "Доступ только для учеников."}, status=status.HTTP_403_FORBIDDEN)
+
+        step = get_object_or_404(LessonStep, id=step_id)
+        progress, _ = UserStepProgress.objects.get_or_create(user=request.user, step=step)
+
+        answer_payload = {}
+        is_correct = False
+        message = ""
+        score = 0.0
+
+        if step.step_type == LessonStep.STEP_TYPE_THEORY:
+            mark_complete = bool(request.data.get("mark_complete", True))
+            is_correct = mark_complete
+            score = 1.0 if mark_complete else 0.0
+            answer_payload = {"mark_complete": mark_complete}
+            message = "Теоретический шаг отмечен как пройденный." if mark_complete else "Шаг не отмечен."
+
+        elif step.step_type == LessonStep.STEP_TYPE_PRACTICE_DRAG:
+            submitted_answer = self._normalize_list(request.data.get("answer", []))
+            expected_answer = self._normalize_list(step.config.get("answer", []))
+            answer_payload = {"answer": submitted_answer}
+            is_correct = bool(expected_answer) and submitted_answer == expected_answer
+            score = 1.0 if is_correct else 0.0
+            message = "Верно! Порядок собран правильно." if is_correct else "Пока неверно, попробуй ещё раз."
+
+        elif step.step_type == LessonStep.STEP_TYPE_QUIZ:
+            submitted = str(request.data.get("answer", "")).strip()
+            correct_answer = str(step.config.get("correct_answer", "")).strip()
+            answer_payload = {"answer": submitted}
+            is_correct = bool(correct_answer) and submitted == correct_answer
+            score = 1.0 if is_correct else 0.0
+            message = "Правильный ответ." if is_correct else "Ответ не совпал."
+
+        elif step.step_type == LessonStep.STEP_TYPE_PRACTICE_CODE:
+            submitted_code = str(request.data.get("answer", "")).strip()
+            expected_code = str(step.config.get("expected_code", "")).strip()
+            answer_payload = {"answer": submitted_code}
+            is_correct = bool(expected_code) and submitted_code == expected_code
+            score = 1.0 if is_correct else 0.0
+            message = "Код принят." if is_correct else "Код не прошел проверку."
+
+        else:
+            return Response({"detail": "Неподдерживаемый тип шага."}, status=status.HTTP_400_BAD_REQUEST)
+
+        progress.attempts = int(progress.attempts or 0) + 1
+        progress.answer_payload = answer_payload
+        progress.score = score
+
+        xp_granted = 0
+        if is_correct and not progress.completed:
+            progress.completed = True
+            progress.completed_at = timezone.now()
+            xp_granted = int(step.xp_reward or 0)
+
+        progress.save()
+
+        lesson_completed_now = False
+        if is_correct:
+            lesson_completed_now = self._sync_lesson_completion_from_steps(request.user, step.lesson)
+
+        new_achievements = []
+        if xp_granted > 0:
+            request.user.add_experience(xp_granted)
+            new_achievements = evaluate_and_unlock_achievements(request.user)
+        elif is_correct:
+            new_achievements = evaluate_and_unlock_achievements(request.user)
+
+        return Response(
+            {
+                "success": True,
+                "step_id": step.id,
+                "step_type": step.step_type,
+                "is_correct": is_correct,
+                "message": message,
+                "progress": {
+                    "completed": bool(progress.completed),
+                    "attempts": int(progress.attempts or 0),
+                    "score": progress.score,
+                    "completed_at": progress.completed_at.isoformat() if progress.completed_at else None,
+                },
+                "xp_granted": xp_granted,
+                "lesson_completed_now": lesson_completed_now,
+                "user": {
+                    "xp": request.user.experience,
+                    "level": request.user.level,
+                },
+                "new_achievements": new_achievements,
+            }
+        )
 
 
 class UserProgressListView(generics.ListCreateAPIView):
@@ -279,6 +450,57 @@ class AchievementListView(APIView):
                 }
             )
         return Response(data)
+
+
+class UnlockPvzCupAchievementView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != "student":
+            return Response({"detail": "Доступ только для учеников."}, status=status.HTTP_403_FORBIDDEN)
+
+        achievement_map = ensure_base_achievements()
+        achievement = achievement_map.get("pvz_cup")
+        if achievement is None:
+            return Response({"detail": "Достижение не найдено."}, status=status.HTTP_404_NOT_FOUND)
+
+        user_achievement = UserAchievement.objects.filter(user=request.user, achievement=achievement).first()
+        created = False
+        if user_achievement is None:
+            user_achievement = UserAchievement.objects.create(user=request.user, achievement=achievement)
+            created = True
+
+        return Response(
+            {
+                "success": True,
+                "already_unlocked": not created,
+                "new_achievements": (
+                    [
+                        {
+                            "id": achievement.id,
+                            "code": achievement.badge_icon,
+                            "name": achievement.name,
+                        }
+                    ]
+                    if created
+                    else []
+                ),
+                "achievement": {
+                    "id": achievement.id,
+                    "code": achievement.badge_icon,
+                    "name": achievement.name,
+                    "xp_required": achievement.xp_required,
+                    "unlocked": True,
+                    "unlocked_at": (
+                        user_achievement.date_unlocked.isoformat() if user_achievement and user_achievement.date_unlocked else None
+                    ),
+                },
+                "user": {
+                    "xp": request.user.experience,
+                    "level": request.user.level,
+                },
+            }
+        )
 
 
 @api_view(["POST"])
