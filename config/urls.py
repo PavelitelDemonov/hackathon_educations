@@ -24,7 +24,6 @@ from drf_spectacular.views import (
     SpectacularRedocView
 )
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('apps.users.urls')),
@@ -36,12 +35,14 @@ urlpatterns = [
     path('teacher/', TemplateView.as_view(template_name='teacher_dashboard.html'), name='teacher_home'),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema')),
-
-   #path('api/', include("")),
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += [
+        path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
+        path('api/redoc/', SpectacularRedocView.as_view(url_name='schema')),
+    ]
+    if settings.STATICFILES_DIRS:
+        urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
+    if settings.MEDIA_URL and settings.MEDIA_ROOT:
+        urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
