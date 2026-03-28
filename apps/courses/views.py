@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
@@ -23,6 +24,50 @@ from .serializer import (
     ModuleSerializer,
     UserProgressSerializer,
 )
+
+
+def is_module_locked_for_student(user, module):
+    if not user or getattr(user, "role", "") != "student" or module is None:
+        return False
+
+    try:
+        module_order = int(module.order or 0)
+    except (TypeError, ValueError):
+        module_order = 0
+    if module_order <= 1:
+        return False
+
+    previous_modules = Module.objects.filter(order__lt=module_order).order_by("order", "id")
+    module_language = str(module.language or "").strip()
+    if module_language:
+        previous_modules = previous_modules.filter(language__iexact=module_language)
+
+    for previous_module in previous_modules:
+        total_lessons = Lesson.objects.filter(module=previous_module).count()
+        if total_lessons <= 0:
+            continue
+        completed_lessons = (
+            UserProgress.objects.filter(
+                user=user,
+                module=previous_module,
+                completed=True,
+            )
+            .values("lesson_id")
+            .distinct()
+            .count()
+        )
+        if completed_lessons < total_lessons:
+            return True
+    return False
+
+
+def module_lock_message(module):
+    try:
+        module_order = int(module.order or 0)
+    except (TypeError, ValueError):
+        module_order = 0
+    previous_order = max(1, module_order - 1)
+    return f"Сначала завершите модуль {previous_order}."
 
 
 class ModuleListView(generics.ListAPIView):
@@ -49,6 +94,10 @@ class LessonListView(generics.ListAPIView):
 
     def get_queryset(self):
         module_id = self.kwargs["module_id"]
+        module = Module.objects.filter(id=module_id).first()
+        user = getattr(self.request, "user", None)
+        if user and user.is_authenticated and is_module_locked_for_student(user, module):
+            return Lesson.objects.none()
         return Lesson.objects.filter(module_id=module_id).prefetch_related("steps").order_by("order")
 
 
@@ -63,6 +112,11 @@ class LessonStepListView(APIView):
 
     def get(self, request, lesson_id):
         lesson = get_object_or_404(Lesson, id=lesson_id)
+        if is_module_locked_for_student(request.user, lesson.module):
+            return Response(
+                {"detail": module_lock_message(lesson.module)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         steps = LessonStep.objects.filter(lesson=lesson).order_by("order", "id")
         progress_map = {
             item.step_id: item
@@ -93,6 +147,29 @@ class SubmitLessonStepAttemptView(APIView):
             if text:
                 normalized.append(text)
         return normalized
+
+    def _normalize_code(self, raw_code):
+        text = str(raw_code or "")
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [line.rstrip() for line in text.split("\n")]
+        normalized = "\n".join(lines).strip()
+        return normalized
+
+    def _is_lesson_locked_for_final_test(self, user, lesson):
+        if "итоговый тест" not in str(lesson.title or "").lower():
+            return False
+        completed_before = (
+            UserProgress.objects.filter(
+                user=user,
+                module=lesson.module,
+                completed=True,
+                lesson__order__lt=lesson.order,
+            )
+            .values("lesson_id")
+            .distinct()
+            .count()
+        )
+        return completed_before < 2
 
     def _sync_lesson_completion_from_steps(self, user, lesson):
         required_steps = LessonStep.objects.filter(
@@ -142,6 +219,16 @@ class SubmitLessonStepAttemptView(APIView):
             return Response({"detail": "Доступ только для учеников."}, status=status.HTTP_403_FORBIDDEN)
 
         step = get_object_or_404(LessonStep, id=step_id)
+        if is_module_locked_for_student(request.user, step.lesson.module):
+            return Response(
+                {"detail": module_lock_message(step.lesson.module)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if self._is_lesson_locked_for_final_test(request.user, step.lesson):
+            return Response(
+                {"detail": "Сначала завершите первые 2 урока модуля."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         progress, _ = UserStepProgress.objects.get_or_create(user=request.user, step=step)
 
         answer_payload = {}
@@ -173,8 +260,8 @@ class SubmitLessonStepAttemptView(APIView):
             message = "Правильный ответ." if is_correct else "Ответ не совпал."
 
         elif step.step_type == LessonStep.STEP_TYPE_PRACTICE_CODE:
-            submitted_code = str(request.data.get("answer", "")).strip()
-            expected_code = str(step.config.get("expected_code", "")).strip()
+            submitted_code = self._normalize_code(request.data.get("answer", ""))
+            expected_code = self._normalize_code(step.config.get("expected_code", ""))
             answer_payload = {"answer": submitted_code}
             is_correct = bool(expected_code) and submitted_code == expected_code
             score = 1.0 if is_correct else 0.0
@@ -238,6 +325,12 @@ class UserProgressListView(generics.ListCreateAPIView):
         return UserProgress.objects.filter(user=self.request.user).order_by("module_id", "lesson_id")
 
     def perform_create(self, serializer):
+        lesson = serializer.validated_data.get("lesson")
+        module = serializer.validated_data.get("module")
+        if module is None and lesson is not None:
+            module = lesson.module
+        if self.request.user.role == "student" and is_module_locked_for_student(self.request.user, module):
+            raise PermissionDenied(module_lock_message(module))
         serializer.save(user=self.request.user)
 
 
@@ -315,11 +408,15 @@ class ProgressSlidesBulkSyncView(APIView):
         total_new_slides = 0
         changed_progress_ids = set()
         touched_module_ids = set()
+        blocked_lesson_ids = set()
 
         with transaction.atomic():
             for lesson_id, incoming_raw_indexes in normalized_items:
                 lesson = lessons_map.get(lesson_id)
                 if lesson is None:
+                    continue
+                if is_module_locked_for_student(request.user, lesson.module):
+                    blocked_lesson_ids.add(lesson_id)
                     continue
 
                 progress = existing_progress_map.get(lesson_id)
@@ -448,6 +545,7 @@ class ProgressSlidesBulkSyncView(APIView):
                 "slides_added": total_new_slides,
                 "xp_granted": total_xp_granted,
                 "updated_progress_ids": sorted(changed_progress_ids),
+                "blocked_lesson_ids": sorted(blocked_lesson_ids),
                 "progress": progress_list,
                 "user": {
                     "xp": request.user.experience,
@@ -565,11 +663,37 @@ class CompleteLessonView(APIView):
     SLIDE_XP = DEFAULT_SLIDE_XP
     MODULE_XP = DEFAULT_MODULE_XP
 
+    def _is_lesson_locked_for_final_test(self, user, lesson):
+        if "итоговый тест" not in str(lesson.title or "").lower():
+            return False
+        completed_before = (
+            UserProgress.objects.filter(
+                user=user,
+                module=lesson.module,
+                completed=True,
+                lesson__order__lt=lesson.order,
+            )
+            .values("lesson_id")
+            .distinct()
+            .count()
+        )
+        return completed_before < 2
+
     def post(self, request, lesson_id):
         if request.user.role != "student":
             return Response({"detail": "Доступ только для учеников."}, status=status.HTTP_403_FORBIDDEN)
 
         lesson = get_object_or_404(Lesson, id=lesson_id)
+        if is_module_locked_for_student(request.user, lesson.module):
+            return Response(
+                {"detail": module_lock_message(lesson.module)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if self._is_lesson_locked_for_final_test(request.user, lesson):
+            return Response(
+                {"detail": "Сначала завершите первые 2 урока модуля."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         progress = UserProgress.objects.filter(user=request.user, lesson=lesson).order_by("id").first()
         if progress is None:
             progress = UserProgress.objects.create(

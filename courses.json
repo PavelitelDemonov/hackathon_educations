@@ -42,6 +42,17 @@
   }
 },
 {
+  "model": "courses.lesson",
+  "pk": 5,
+  "fields": {
+    "module": 2,
+    "title": "Итоговый тест модуля 1",
+    "content": "Итоговый тест: теория + практика + код.",
+    "order": 3,
+    "video_url": ""
+  }
+},
+{
   "model": "courses.lessonstep",
   "pk": 1,
   "fields": {
@@ -334,6 +345,79 @@
         "\"Аня\"",
         "name="
       ]
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 21,
+  "fields": {
+    "lesson": 5,
+    "order": 1,
+    "step_type": "quiz",
+    "title": "Вопрос 1: что такое переменная?",
+    "content": "Выбери верное утверждение про переменную.",
+    "config": {
+      "question": "Что верно про переменную в Python?",
+      "options": [
+        {
+          "value": "a",
+          "text": "Переменная хранит данные под именем."
+        },
+        {
+          "value": "b",
+          "text": "Переменная нужна только для картинок."
+        },
+        {
+          "value": "c",
+          "text": "Переменная всегда равна 0."
+        }
+      ],
+      "correct_answer": "a"
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 22,
+  "fields": {
+    "lesson": 5,
+    "order": 2,
+    "step_type": "practice_drag",
+    "title": "Вопрос 2: собери запись переменной",
+    "content": "Собери выражение `name=\"Аня\"` из кусочков.",
+    "config": {
+      "answer": [
+        "name",
+        "=",
+        "\"Аня\""
+      ],
+      "tokens": [
+        "=",
+        "name",
+        "\"Аня\""
+      ]
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 23,
+  "fields": {
+    "lesson": 5,
+    "order": 3,
+    "step_type": "practice_code",
+    "title": "Вопрос 3: напиши и запусти код",
+    "content": "Напиши код, который создаёт переменную `name` со значением `\"Аня\"` и выводит её через `print()`.",
+    "config": {
+      "starter_code": "name = \"Аня\"\nprint(name)",
+      "expected_code": "name = \"Аня\"\nprint(name)"
     },
     "xp_reward": 0,
     "is_required": true

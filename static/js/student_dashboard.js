@@ -98,6 +98,9 @@ let currentLessonSections = [];
 let currentSectionIndex = 0;
 const stepProgressByStepId = new Map();
 const practiceDragStateByStepId = new Map();
+const quizStateByStepId = new Map();
+const codePracticeStateByStepId = new Map();
+const finalTestIntroAcceptedLessonIds = new Set();
 const lessonsByModule = new Map();
 const moduleLessonTotals = new Map();
 const moduleLessonsLoading = new Set();
@@ -132,6 +135,8 @@ let avatarEditorDragStartY = 0;
 let avatarEditorDragStartOffsetX = 0;
 let avatarEditorDragStartOffsetY = 0;
 let achievementSoundEl = null;
+let pyodideInstancePromise = null;
+const PYODIDE_INDEX_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 
 function clearAuthAndRedirect() {
     localStorage.removeItem("token");
@@ -1332,6 +1337,10 @@ modulesListEl.addEventListener("click", (event) => {
     if (!moduleButton) {
         return;
     }
+    if (moduleButton.disabled) {
+        setLessonProgressStatus("Сначала заверши предыдущий модуль.");
+        return;
+    }
 
     const moduleId = Number(moduleButton.dataset.moduleId);
     const moduleName = moduleButton.dataset.moduleName || "Модуль";
@@ -1362,10 +1371,25 @@ async function goToNextSlide() {
     }
 
     const lesson = currentLessons[currentLessonIndex];
+    if (needsFinalTestIntro(lesson)) {
+        finalTestIntroAcceptedLessonIds.add(Number(lesson.id));
+        setLessonProgressStatus("");
+        currentSectionIndex = 0;
+        renderActiveLesson();
+        return;
+    }
+
     const currentSegment = currentLessonSections[currentSectionIndex];
-    if (!isParentMode && currentSegment?.kind === "practice_drag" && !isLessonSegmentCompleted(lesson?.id, currentSegment, currentSectionIndex)) {
-        const practiceCompleted = await submitPracticeDragStep(lesson, currentSegment);
-        if (!practiceCompleted) {
+    if (!isParentMode && isInteractiveSegment(currentSegment) && !isLessonSegmentCompleted(lesson?.id, currentSegment, currentSectionIndex)) {
+        let segmentCompleted = false;
+        if (currentSegment.kind === "practice_drag") {
+            segmentCompleted = await submitPracticeDragStep(lesson, currentSegment);
+        } else if (currentSegment.kind === "quiz") {
+            segmentCompleted = await submitQuizStep(lesson, currentSegment);
+        } else if (currentSegment.kind === "practice_code") {
+            segmentCompleted = await submitCodePracticeStep(lesson, currentSegment);
+        }
+        if (!segmentCompleted) {
             return;
         }
         await syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
@@ -1405,6 +1429,11 @@ lessonListEl.addEventListener("click", (event) => {
 
     const index = Number(lessonButton.dataset.lessonIndex);
     if (!Number.isNaN(index) && index >= 0 && index < currentLessons.length) {
+        if (isLessonLockedByPrerequisites(currentLessons[index], index)) {
+            setLessonProgressStatus("Сначала пройди первые 2 урока.");
+            renderLessonProgressOverview();
+            return;
+        }
         currentLessonIndex = index;
         currentSectionIndex = 0;
         renderActiveLesson();
@@ -1670,6 +1699,8 @@ function syncProgressState(progressItems) {
     viewedSlidesByLessonId.clear();
     stepProgressByStepId.clear();
     practiceDragStateByStepId.clear();
+    quizStateByStepId.clear();
+    codePracticeStateByStepId.clear();
 
     (Array.isArray(progressItems) ? progressItems : []).forEach((item) => {
         const lessonId = Number(
@@ -1759,6 +1790,55 @@ function getModuleProgressStats(moduleId) {
         total: safeTotal,
         percent: clamp(percent, 0, 100)
     };
+}
+
+function getSortedModulesForLanguage(languageKey = activeLanguageKey) {
+    return filterModulesByLanguage(allModules, languageKey)
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+function getKnownTotalLessonsForModule(moduleId) {
+    const normalizedModuleId = Number(moduleId);
+    if (!Number.isFinite(normalizedModuleId)) {
+        return 0;
+    }
+    if (moduleLessonTotals.has(normalizedModuleId)) {
+        return Math.max(0, Number(moduleLessonTotals.get(normalizedModuleId) || 0));
+    }
+    const cachedLessons = lessonsByModule.get(normalizedModuleId);
+    if (Array.isArray(cachedLessons)) {
+        return cachedLessons.length;
+    }
+    return 0;
+}
+
+function isModuleCompleted(module) {
+    const moduleId = Number(module?.id);
+    if (!Number.isFinite(moduleId)) {
+        return false;
+    }
+    const completed = getCompletedLessonsForModule(moduleId);
+    const total = getKnownTotalLessonsForModule(moduleId);
+    return total > 0 && completed >= total;
+}
+
+function isModuleLocked(module, sortedModules = null) {
+    if (isParentMode) {
+        return false;
+    }
+    const moduleOrder = Number(module?.order ?? 0);
+    if (!Number.isFinite(moduleOrder) || moduleOrder <= 1) {
+        return false;
+    }
+
+    const modulesList = Array.isArray(sortedModules) ? sortedModules : getSortedModulesForLanguage();
+    const previousModules = modulesList.filter((item) => Number(item?.order ?? 0) < moduleOrder);
+    if (!previousModules.length) {
+        return false;
+    }
+
+    return previousModules.some((previousModule) => !isModuleCompleted(previousModule));
 }
 
 async function warmupModuleLessonTotals(modules) {
@@ -2031,6 +2111,32 @@ function parseLessonSectionsFromSteps(lesson) {
             if (stepType === "practice_drag") {
                 return {
                     kind: "practice_drag",
+                    stepId,
+                    stepType,
+                    order: Number(step?.order ?? index + 1),
+                    title,
+                    text: content,
+                    config: step?.config || {},
+                    progress
+                };
+            }
+
+            if (stepType === "quiz") {
+                return {
+                    kind: "quiz",
+                    stepId,
+                    stepType,
+                    order: Number(step?.order ?? index + 1),
+                    title,
+                    text: content,
+                    config: step?.config || {},
+                    progress
+                };
+            }
+
+            if (stepType === "practice_code") {
+                return {
+                    kind: "practice_code",
                     stepId,
                     stepType,
                     order: Number(step?.order ?? index + 1),
@@ -2320,15 +2426,82 @@ function isPracticeStepCompleted(stepId) {
     return Boolean(getStepProgress(normalizedStepId)?.completed);
 }
 
+function isInteractiveSegment(segment) {
+    const kind = String(segment?.kind || "");
+    return kind === "practice_drag" || kind === "quiz" || kind === "practice_code";
+}
+
 function isLessonSegmentCompleted(lessonId, segment, index) {
     const normalizedLessonId = Number(lessonId);
     if (completedLessonIds.has(normalizedLessonId)) {
         return true;
     }
-    if (segment?.kind === "practice_drag") {
+    if (isInteractiveSegment(segment)) {
         return isPracticeStepCompleted(segment.stepId);
     }
     return getViewedSlidesSet(normalizedLessonId).has(index);
+}
+
+function isFinalTestLesson(lesson) {
+    const title = String(lesson?.title || "").toLowerCase();
+    return title.includes("итоговый тест");
+}
+
+function needsFinalTestIntro(lesson) {
+    const lessonId = Number(lesson?.id);
+    if (!Number.isFinite(lessonId)) {
+        return false;
+    }
+    if (isParentMode || !isFinalTestLesson(lesson)) {
+        return false;
+    }
+    if (completedLessonIds.has(lessonId)) {
+        return false;
+    }
+    return !finalTestIntroAcceptedLessonIds.has(lessonId);
+}
+
+function isLessonLockedByPrerequisites(lesson, lessonIndex) {
+    if (isParentMode || !isFinalTestLesson(lesson)) {
+        return false;
+    }
+    const requiredCompletedLessons = 2;
+    const completedBefore = currentLessons
+        .slice(0, lessonIndex)
+        .filter((item) => completedLessonIds.has(Number(item?.id)))
+        .length;
+    return completedBefore < requiredCompletedLessons;
+}
+
+function renderFinalTestIntro(lesson) {
+    const totalTasks = Array.isArray(currentLessonSections) ? currentLessonSections.length : 0;
+    const safeTotal = Math.max(totalTasks, 3);
+
+    lessonContentEl.innerHTML = `
+        <section class="lesson-section final-test-intro">
+            <h5 class="lesson-section__title">Перед тобой итоговый тест</h5>
+            <div class="lesson-section__body">
+                <p class="md-paragraph">
+                    Это важный этап. Тест проверяет, как ты понял(а) темы после первых двух уроков.
+                </p>
+                <ul class="md-list">
+                    <li>${safeTotal} задания: теория, сборка кода и мини-практика.</li>
+                    <li>Отвечай спокойно, ошибки можно исправлять.</li>
+                    <li>Главное — показать, что ты понимаешь, как работают переменные.</li>
+                </ul>
+                <p class="md-paragraph final-test-intro__hint">
+                    Когда будешь готов(а), нажми «Начать тест».
+                </p>
+            </div>
+        </section>
+    `;
+
+    lessonPrevBtn.disabled = currentLessonIndex === 0;
+    lessonNextBtn.disabled = false;
+    lessonNextBtn.textContent = "Начать тест";
+    setLessonProgressStatus("важный тест");
+    renderLessonList();
+    renderLessonProgressOverview();
 }
 
 function createPracticeTokenObjects(stepId, tokens) {
@@ -2579,11 +2752,16 @@ function renderPracticeDragSegment(lesson, segment) {
 
     const checkBtn = document.createElement("button");
     checkBtn.type = "button";
-    checkBtn.className = "btn btn-primary";
+    checkBtn.className = "btn btn-test-check";
     checkBtn.textContent = "Проверить";
     checkBtn.disabled = state.isSubmitting || isPracticeStepCompleted(state.stepId);
     checkBtn.addEventListener("click", () => {
-        void submitPracticeDragStep(lesson, segment);
+        void (async () => {
+            const isCorrect = await submitPracticeDragStep(lesson, segment);
+            if (isCorrect) {
+                await syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
+            }
+        })();
     });
     actions.appendChild(checkBtn);
 
@@ -2632,6 +2810,391 @@ function renderPracticeDragSegment(lesson, segment) {
     lessonContentEl.appendChild(block);
 }
 
+function normalizeQuizOptions(rawOptions) {
+    if (!Array.isArray(rawOptions)) {
+        return [];
+    }
+    return rawOptions
+        .map((item, index) => {
+            if (item && typeof item === "object") {
+                const value = String(item.value ?? item.id ?? index).trim();
+                const text = String(item.text ?? item.label ?? value).trim();
+                if (!value || !text) {
+                    return null;
+                }
+                return { value, text };
+            }
+            const text = String(item || "").trim();
+            if (!text) {
+                return null;
+            }
+            return { value: text, text };
+        })
+        .filter(Boolean);
+}
+
+function ensureQuizState(segment) {
+    const stepId = Number(segment?.stepId);
+    if (!Number.isFinite(stepId)) {
+        return null;
+    }
+    const options = normalizeQuizOptions(segment?.config?.options);
+    if (!options.length) {
+        return null;
+    }
+    if (!quizStateByStepId.has(stepId)) {
+        quizStateByStepId.set(stepId, {
+            selectedValue: "",
+            statusMessage: "",
+            statusType: "",
+            isSubmitting: false
+        });
+    }
+    return quizStateByStepId.get(stepId);
+}
+
+async function submitQuizStep(lesson, segment) {
+    const stepId = Number(segment?.stepId);
+    const state = ensureQuizState(segment);
+    if (!Number.isFinite(stepId) || !state || state.isSubmitting) {
+        return false;
+    }
+    if (!state.selectedValue) {
+        state.statusMessage = "Выбери вариант ответа.";
+        state.statusType = "error";
+        renderActiveLesson();
+        return false;
+    }
+
+    state.isSubmitting = true;
+    renderActiveLesson();
+
+    try {
+        const payload = await submitLessonStepAttempt(stepId, { answer: state.selectedValue });
+        setStepProgress(stepId, payload?.progress || null);
+        if (payload?.is_correct) {
+            state.statusMessage = payload?.message || "Верный ответ.";
+            state.statusType = "success";
+        } else {
+            state.statusMessage = payload?.message || "Ответ неверный.";
+            state.statusType = "error";
+        }
+        applyUserXpFromPayload(payload?.user);
+        applyNewAchievements(payload?.new_achievements);
+        renderModulesForActiveLanguage();
+        return Boolean(payload?.is_correct);
+    } catch (error) {
+        state.statusMessage = error?.message || "Ошибка проверки.";
+        state.statusType = "error";
+        return false;
+    } finally {
+        state.isSubmitting = false;
+        renderActiveLesson();
+    }
+}
+
+function renderQuizSegment(lesson, segment) {
+    const state = ensureQuizState(segment);
+    lessonContentEl.innerHTML = "";
+
+    const block = document.createElement("section");
+    block.className = "lesson-section lesson-section--quiz";
+
+    const title = document.createElement("h5");
+    title.className = "lesson-section__title";
+    title.textContent = segment?.title || "Тест";
+    block.appendChild(title);
+
+    const question = String(segment?.config?.question || segment?.text || "").trim();
+    const body = document.createElement("div");
+    body.className = "lesson-section__body";
+    body.innerHTML = question
+        ? renderMarkdownToHtml(question)
+        : "<p class=\"md-paragraph\">Выбери правильный вариант.</p>";
+    block.appendChild(body);
+
+    const options = normalizeQuizOptions(segment?.config?.options);
+    const optionsWrap = document.createElement("div");
+    optionsWrap.className = "quiz-options";
+
+    options.forEach((option) => {
+        const optionBtn = document.createElement("button");
+        optionBtn.type = "button";
+        optionBtn.className = "quiz-option";
+        optionBtn.textContent = option.text;
+        optionBtn.dataset.value = option.value;
+
+        if (state?.selectedValue === option.value) {
+            optionBtn.classList.add("is-selected");
+        }
+        if (state?.isSubmitting || isPracticeStepCompleted(segment.stepId)) {
+            optionBtn.disabled = true;
+        }
+
+        optionBtn.addEventListener("click", () => {
+            state.selectedValue = option.value;
+            state.statusMessage = "";
+            state.statusType = "";
+            renderActiveLesson();
+        });
+        optionsWrap.appendChild(optionBtn);
+    });
+
+    block.appendChild(optionsWrap);
+
+    const actions = document.createElement("div");
+    actions.className = "quiz-actions";
+
+    const checkBtn = document.createElement("button");
+    checkBtn.type = "button";
+    checkBtn.className = "btn btn-test-check";
+    checkBtn.textContent = "Проверить";
+    checkBtn.disabled = !state || state.isSubmitting || isPracticeStepCompleted(segment.stepId);
+    checkBtn.addEventListener("click", () => {
+        void (async () => {
+            const isCorrect = await submitQuizStep(lesson, segment);
+            if (isCorrect) {
+                await syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
+            }
+        })();
+    });
+    actions.appendChild(checkBtn);
+    block.appendChild(actions);
+
+    const status = document.createElement("p");
+    status.className = "quiz-status";
+    if (state?.statusType === "success") {
+        status.classList.add("quiz-status--success");
+    } else if (state?.statusType === "error") {
+        status.classList.add("quiz-status--error");
+    }
+    if (isPracticeStepCompleted(segment.stepId) && !(state?.statusMessage)) {
+        status.textContent = "Тестовый вопрос выполнен.";
+        status.classList.add("quiz-status--success");
+    } else {
+        status.textContent = state?.statusMessage || "";
+    }
+    block.appendChild(status);
+
+    lessonContentEl.appendChild(block);
+}
+
+function ensureCodePracticeState(segment) {
+    const stepId = Number(segment?.stepId);
+    if (!Number.isFinite(stepId)) {
+        return null;
+    }
+    const starterCode = String(
+        segment?.config?.starter_code
+        || segment?.config?.template
+        || segment?.config?.expected_code
+        || ""
+    );
+    if (!codePracticeStateByStepId.has(stepId)) {
+        codePracticeStateByStepId.set(stepId, {
+            code: starterCode,
+            runOutput: "",
+            statusMessage: "",
+            statusType: "",
+            isSubmitting: false,
+            isRunning: false
+        });
+    }
+    return codePracticeStateByStepId.get(stepId);
+}
+
+function ensurePyodideRuntime() {
+    if (pyodideInstancePromise) {
+        return pyodideInstancePromise;
+    }
+    pyodideInstancePromise = (async () => {
+        if (typeof window.loadPyodide !== "function") {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = `${PYODIDE_INDEX_URL}pyodide.js`;
+                script.async = true;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error("Не удалось загрузить Pyodide."));
+                document.head.appendChild(script);
+            });
+        }
+        const pyodide = await window.loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+        return pyodide;
+    })();
+    return pyodideInstancePromise.catch((error) => {
+        pyodideInstancePromise = null;
+        throw error;
+    });
+}
+
+async function runCodeInPyodide(codeText) {
+    const pyodide = await ensurePyodideRuntime();
+    const runnerCode = `
+import io
+import contextlib
+import traceback
+
+_user_code = ${JSON.stringify(String(codeText || ""))}
+_buffer = io.StringIO()
+try:
+    with contextlib.redirect_stdout(_buffer):
+        with contextlib.redirect_stderr(_buffer):
+            exec(_user_code, {})
+except Exception:
+    traceback.print_exc(file=_buffer)
+_js_result = _buffer.getvalue()
+`;
+    await pyodide.runPythonAsync(runnerCode);
+    const outputObj = pyodide.globals.get("_js_result");
+    const output = String(outputObj || "");
+    if (outputObj && typeof outputObj.destroy === "function") {
+        outputObj.destroy();
+    }
+    return output;
+}
+
+async function submitCodePracticeStep(lesson, segment) {
+    const stepId = Number(segment?.stepId);
+    const state = ensureCodePracticeState(segment);
+    if (!Number.isFinite(stepId) || !state || state.isSubmitting) {
+        return false;
+    }
+
+    const answer = String(state.code || "").trim();
+    if (!answer) {
+        state.statusMessage = "Введи код перед проверкой.";
+        state.statusType = "error";
+        renderActiveLesson();
+        return false;
+    }
+
+    state.isSubmitting = true;
+    renderActiveLesson();
+
+    try {
+        const payload = await submitLessonStepAttempt(stepId, { answer });
+        setStepProgress(stepId, payload?.progress || null);
+        if (payload?.is_correct) {
+            state.statusMessage = payload?.message || "Код принят.";
+            state.statusType = "success";
+        } else {
+            state.statusMessage = payload?.message || "Код пока не прошел проверку.";
+            state.statusType = "error";
+        }
+        applyUserXpFromPayload(payload?.user);
+        applyNewAchievements(payload?.new_achievements);
+        renderModulesForActiveLanguage();
+        return Boolean(payload?.is_correct);
+    } catch (error) {
+        state.statusMessage = error?.message || "Ошибка проверки кода.";
+        state.statusType = "error";
+        return false;
+    } finally {
+        state.isSubmitting = false;
+        renderActiveLesson();
+    }
+}
+
+function renderCodePracticeSegment(lesson, segment) {
+    const state = ensureCodePracticeState(segment);
+    lessonContentEl.innerHTML = "";
+
+    const block = document.createElement("section");
+    block.className = "lesson-section lesson-section--code";
+
+    const title = document.createElement("h5");
+    title.className = "lesson-section__title";
+    title.textContent = segment?.title || "Практика кода";
+    block.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "lesson-section__body";
+    body.innerHTML = segment?.text
+        ? renderMarkdownToHtml(segment.text)
+        : "<p class=\"md-paragraph\">Напиши код и проверь его.</p>";
+    block.appendChild(body);
+
+    const editor = document.createElement("textarea");
+    editor.className = "code-practice-editor";
+    editor.spellcheck = false;
+    editor.value = state?.code || "";
+    editor.placeholder = "Напиши Python-код...";
+    editor.disabled = !state || state.isSubmitting || state.isRunning || isPracticeStepCompleted(segment.stepId);
+    editor.addEventListener("input", () => {
+        state.code = editor.value;
+    });
+    block.appendChild(editor);
+
+    const actions = document.createElement("div");
+    actions.className = "code-practice-actions";
+
+    const runBtn = document.createElement("button");
+    runBtn.type = "button";
+    runBtn.className = "btn btn-test-run";
+    runBtn.textContent = state?.isRunning ? "Запуск..." : "Запустить код";
+    runBtn.disabled = !state || state.isRunning || state.isSubmitting;
+    runBtn.addEventListener("click", () => {
+        void (async () => {
+            state.isRunning = true;
+            state.runOutput = "Запуск кода...";
+            renderActiveLesson();
+            try {
+                const output = await runCodeInPyodide(state.code);
+                state.runOutput = output || "(без вывода)";
+            } catch (error) {
+                state.runOutput = error?.message || "Ошибка запуска Python.";
+            } finally {
+                state.isRunning = false;
+                renderActiveLesson();
+            }
+        })();
+    });
+    actions.appendChild(runBtn);
+
+    const checkBtn = document.createElement("button");
+    checkBtn.type = "button";
+    checkBtn.className = "btn btn-test-check";
+    checkBtn.textContent = "Проверить";
+    checkBtn.disabled = !state || state.isSubmitting || isPracticeStepCompleted(segment.stepId);
+    checkBtn.addEventListener("click", () => {
+        void (async () => {
+            const isCorrect = await submitCodePracticeStep(lesson, segment);
+            if (isCorrect) {
+                await syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
+            }
+        })();
+    });
+    actions.appendChild(checkBtn);
+    block.appendChild(actions);
+
+    const outputLabel = document.createElement("p");
+    outputLabel.className = "code-practice-output-label";
+    outputLabel.textContent = "Вывод интерпретатора (Pyodide):";
+    block.appendChild(outputLabel);
+
+    const output = document.createElement("pre");
+    output.className = "code-practice-output";
+    output.textContent = state?.runOutput || "(пока пусто)";
+    block.appendChild(output);
+
+    const status = document.createElement("p");
+    status.className = "code-practice-status";
+    if (state?.statusType === "success") {
+        status.classList.add("code-practice-status--success");
+    } else if (state?.statusType === "error") {
+        status.classList.add("code-practice-status--error");
+    }
+    if (isPracticeStepCompleted(segment.stepId) && !(state?.statusMessage)) {
+        status.textContent = "Практика кода выполнена.";
+        status.classList.add("code-practice-status--success");
+    } else {
+        status.textContent = state?.statusMessage || "";
+    }
+    block.appendChild(status);
+
+    lessonContentEl.appendChild(block);
+}
+
 function renderLessonProgressOverview() {
     if (!lessonProgressTrackEl || !lessonProgressTextEl) {
         return;
@@ -2660,12 +3223,24 @@ function renderLessonProgressOverview() {
         chip.type = "button";
         chip.className = "lesson-progress-chip";
         chip.dataset.slideIndex = String(index);
-        const isPracticeChip = segment?.kind === "practice_drag";
-        chip.setAttribute("aria-label", isPracticeChip ? `Практика ${index + 1}` : `Слайд ${index + 1}`);
-        chip.title = isPracticeChip ? `Практика ${index + 1}` : `Слайд ${index + 1}`;
+        const kind = String(segment?.kind || "");
+        const isPracticeChip = kind === "practice_drag";
+        const isQuizChip = kind === "quiz";
+        const isCodeChip = kind === "practice_code";
+        const labelPrefix = isPracticeChip
+            ? "Практика"
+            : (isQuizChip ? "Тест" : (isCodeChip ? "Код" : "Слайд"));
+        chip.setAttribute("aria-label", `${labelPrefix} ${index + 1}`);
+        chip.title = `${labelPrefix} ${index + 1}`;
         if (isPracticeChip) {
             chip.classList.add("is-practice");
             chip.dataset.symbol = ">_.";
+        } else if (isQuizChip) {
+            chip.classList.add("is-quiz");
+            chip.dataset.symbol = "?";
+        } else if (isCodeChip) {
+            chip.classList.add("is-code");
+            chip.dataset.symbol = "Py";
         }
 
         if (isLessonSegmentCompleted(currentLesson.id, segment, index)) {
@@ -2877,15 +3452,22 @@ function renderLessonList() {
         const item = document.createElement("button");
         item.type = "button";
         item.className = "lesson-list-item";
+        const isLocked = isLessonLockedByPrerequisites(lesson, index);
         if (index === currentLessonIndex) {
             item.classList.add("is-active");
         }
         if (completedLessonIds.has(lesson.id)) {
             item.classList.add("is-completed");
         }
+        if (isLocked) {
+            item.classList.add("is-locked");
+            item.disabled = true;
+        }
         item.dataset.lessonIndex = String(index);
         const title = escapeHtml(lesson.title || "Без названия");
-        const marker = completedLessonIds.has(lesson.id) ? '<span class="lesson-list-item__done">✓</span>' : "";
+        const marker = completedLessonIds.has(lesson.id)
+            ? '<span class="lesson-list-item__done">✓</span>'
+            : (isLocked ? '<span class="lesson-list-item__lock">🔒</span>' : "");
         item.innerHTML = `${title}${marker}`;
         lessonListEl.appendChild(item);
     });
@@ -2907,6 +3489,20 @@ function renderActiveLesson() {
     }
 
     const lesson = currentLessons[currentLessonIndex];
+    const lessonLocked = isLessonLockedByPrerequisites(lesson, currentLessonIndex);
+    if (lessonLocked) {
+        lessonCounterEl.textContent = `Урок ${currentLessonIndex + 1} из ${currentLessons.length}`;
+        lessonTitleEl.textContent = lesson.title || "Урок заблокирован";
+        lessonContentEl.innerHTML = "<p class=\"student-note\">Сначала пройди первые 2 урока, чтобы открыть итоговый тест.</p>";
+        lessonPrevBtn.disabled = currentLessonIndex === 0;
+        lessonNextBtn.disabled = true;
+        lessonNextBtn.textContent = "Далее";
+        currentLessonSections = [];
+        renderLessonList();
+        renderLessonProgressOverview();
+        return;
+    }
+
     currentLessonSections = parseLessonSectionsFromLesson(lesson);
     if (!currentLessonSections.length) {
         currentLessonSections = [{ kind: "theory", title: "Описание", text: "Текст урока пока не добавлен." }];
@@ -2918,8 +3514,15 @@ function renderActiveLesson() {
         currentSectionIndex = 0;
     }
 
+    if (needsFinalTestIntro(lesson)) {
+        lessonTitleEl.textContent = lesson.title || "Итоговый тест";
+        lessonCounterEl.textContent = `Урок ${currentLessonIndex + 1} из ${currentLessons.length} | Важный тест`;
+        renderFinalTestIntro(lesson);
+        return;
+    }
+
     const currentSegment = currentLessonSections[currentSectionIndex];
-    const isPracticeSegment = currentSegment?.kind === "practice_drag";
+    const isInteractive = isInteractiveSegment(currentSegment);
     const viewedSlidesSet = getViewedSlidesSet(lesson.id);
     const wasViewedBefore = isLessonSegmentCompleted(lesson.id, currentSegment, currentSectionIndex);
     if (completedLessonIds.has(lesson.id)) {
@@ -2927,15 +3530,19 @@ function renderActiveLesson() {
             viewedSlidesSet.add(i);
         }
     }
-    if (!isPracticeSegment) {
+    if (!isInteractive) {
         viewedSlidesSet.add(currentSectionIndex);
         persistViewedSlidesToStorage();
     }
 
     lessonTitleEl.textContent = lesson.title || "Без названия";
     lessonCounterEl.textContent = `Урок ${currentLessonIndex + 1} из ${currentLessons.length} | Слайд ${currentSectionIndex + 1} из ${currentLessonSections.length}`;
-    if (isPracticeSegment) {
+    if (currentSegment?.kind === "practice_drag") {
         renderPracticeDragSegment(lesson, currentSegment);
+    } else if (currentSegment?.kind === "quiz") {
+        renderQuizSegment(lesson, currentSegment);
+    } else if (currentSegment?.kind === "practice_code") {
+        renderCodePracticeSegment(lesson, currentSegment);
     } else {
         renderLessonContent([currentSegment], lesson.video_url);
     }
@@ -2944,10 +3551,10 @@ function renderActiveLesson() {
     const isLastSlide =
         currentLessonIndex === currentLessons.length - 1 &&
         currentSectionIndex === currentLessonSections.length - 1;
-    const practiceCompleted = isPracticeSegment && isLessonSegmentCompleted(lesson.id, currentSegment, currentSectionIndex);
+    const interactiveCompleted = isInteractive && isLessonSegmentCompleted(lesson.id, currentSegment, currentSectionIndex);
     lessonPrevBtn.disabled = isFirstSlide;
     lessonNextBtn.disabled = false;
-    if (isPracticeSegment && !practiceCompleted) {
+    if (isInteractive && !interactiveCompleted) {
         lessonNextBtn.textContent = isLastSlide ? "Проверить" : "Проверить и далее";
     } else {
         lessonNextBtn.textContent = isLastSlide ? "Завершить" : "Далее";
@@ -2955,7 +3562,7 @@ function renderActiveLesson() {
     renderLessonList();
     renderLessonProgressOverview();
 
-    if (!isPracticeSegment && !wasViewedBefore && !completedLessonIds.has(lesson.id)) {
+    if (!isInteractive && !wasViewedBefore && !completedLessonIds.has(lesson.id)) {
         void syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
     }
 }
@@ -2971,17 +3578,24 @@ function renderModules(modules) {
 
     modulesEmptyEl.hidden = true;
 
-    modules
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .forEach((module) => {
+    const sortedModules = modules
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    sortedModules.forEach((module) => {
             const card = document.createElement("button");
             card.type = "button";
             card.className = "student-module-card student-module-card--button";
+            const moduleLocked = isModuleLocked(module, sortedModules);
             if (module.id === activeModuleId) {
                 card.classList.add("is-active-module");
             }
             card.dataset.moduleId = String(module.id);
             card.dataset.moduleName = module.name || "Модуль";
+            if (moduleLocked) {
+                card.classList.add("is-module-locked");
+                card.disabled = true;
+            }
 
             const description = module.description
                 ? escapeHtml(module.description)
@@ -2994,11 +3608,16 @@ function renderModules(modules) {
             if (isCompleted) {
                 card.classList.add("is-module-complete");
             }
+            const previousOrder = Math.max(1, Number(moduleOrder || 0) - 1);
+            const lockBadgeHtml = moduleLocked
+                ? `<div class="student-module-lock">Сначала заверши модуль ${previousOrder}</div>`
+                : "";
 
             card.innerHTML = `
                 <div class="student-module-order">#${moduleOrder}</div>
                 <h3 class="student-module-title">${escapeHtml(module.name || "Без названия")}</h3>
                 <p class="student-module-description">${description}</p>
+                ${lockBadgeHtml}
                 <div class="student-module-progress">
                     <div class="student-module-progress__meta">
                         <span>Прогресс уроков</span>
@@ -3015,9 +3634,18 @@ function renderModules(modules) {
 }
 
 async function selectModule(moduleId, moduleName) {
+    const normalizedModuleId = Number(moduleId);
+    const sortedModules = getSortedModulesForLanguage();
+    const selectedModule = sortedModules.find((module) => Number(module?.id) === normalizedModuleId);
+    if (selectedModule && isModuleLocked(selectedModule, sortedModules)) {
+        setLessonProgressStatus("Сначала заверши предыдущий модуль.");
+        renderModulesForActiveLanguage();
+        return;
+    }
+
     const requestSeq = ++lessonRequestSeq;
-    activeModuleId = moduleId;
-    activeModuleName = moduleName || "Модуль";
+    activeModuleId = normalizedModuleId;
+    activeModuleName = moduleName || selectedModule?.name || "Модуль";
     setLessonProgressStatus("");
 
     lessonViewerEl.hidden = false;
@@ -3032,27 +3660,27 @@ async function selectModule(moduleId, moduleName) {
     renderModulesForActiveLanguage();
 
     try {
-        if (!lessonsByModule.has(moduleId)) {
-            const lessons = await fetchLessons(moduleId);
-            lessonsByModule.set(moduleId, Array.isArray(lessons) ? lessons : []);
+        if (!lessonsByModule.has(normalizedModuleId)) {
+            const lessons = await fetchLessons(normalizedModuleId);
+            lessonsByModule.set(normalizedModuleId, Array.isArray(lessons) ? lessons : []);
         }
 
-        if (requestSeq !== lessonRequestSeq || activeModuleId !== moduleId) {
+        if (requestSeq !== lessonRequestSeq || activeModuleId !== normalizedModuleId) {
             return;
         }
 
-        currentLessons = [...(lessonsByModule.get(moduleId) || [])].sort(
+        currentLessons = [...(lessonsByModule.get(normalizedModuleId) || [])].sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0)
         );
         syncStepProgressFromLessons(currentLessons);
-        moduleLessonTotals.set(moduleId, currentLessons.length);
+        moduleLessonTotals.set(normalizedModuleId, currentLessons.length);
         currentLessonIndex = 0;
         currentSectionIndex = 0;
         currentLessonSections = [];
         renderModulesForActiveLanguage();
         renderActiveLesson();
     } catch (error) {
-        if (requestSeq !== lessonRequestSeq || activeModuleId !== moduleId) {
+        if (requestSeq !== lessonRequestSeq || activeModuleId !== normalizedModuleId) {
             return;
         }
 
@@ -3073,7 +3701,7 @@ async function selectModule(moduleId, moduleName) {
 }
 
 function renderModulesForActiveLanguage() {
-    const filteredModules = filterModulesByLanguage(allModules, activeLanguageKey);
+    const filteredModules = getSortedModulesForLanguage(activeLanguageKey);
     renderModules(filteredModules);
     void warmupModuleLessonTotals(filteredModules);
 
@@ -3092,6 +3720,20 @@ function renderModulesForActiveLanguage() {
         currentSectionIndex = 0;
         currentLessonSections = [];
         lessonViewerEl.hidden = true;
+        return;
+    }
+
+    const activeModule = filteredModules.find((module) => module.id === activeModuleId);
+    if (activeModule && isModuleLocked(activeModule, filteredModules)) {
+        lessonRequestSeq += 1;
+        activeModuleId = null;
+        activeModuleName = "";
+        currentLessons = [];
+        currentLessonIndex = 0;
+        currentSectionIndex = 0;
+        currentLessonSections = [];
+        lessonViewerEl.hidden = true;
+        setLessonProgressStatus("Сначала заверши предыдущий модуль.");
     }
 }
 
