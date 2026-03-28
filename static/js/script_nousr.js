@@ -296,9 +296,13 @@ async function mockLogin(username, password) {
             window.location.assign('/parent/');
             return { ok: true };
         }
+        if (profile.role === 'teacher' || profile.role === 'admin') {
+            window.location.assign('/teacher/');
+            return { ok: true };
+        }
         
         // ПОКАЗАТЬ ПРОФИЛЬ (добавь в HTML!)
-        showUserProfile(profile.username, profile.level);
+        showUserProfile(profile.username, profile.level, profile.role);
         
         closeAuthModal();
         setAuthStatus(loginMessage, `Добро пожаловать, ${profile.username}!`, "success");
@@ -309,7 +313,9 @@ async function mockLogin(username, password) {
 }
 
 // Функция показа профиля в хедере
-function showUserProfile(username, level) {
+function showUserProfile(username, level, role = "") {
+    const showLevel = role !== "teacher" && role !== "admin";
+    const label = showLevel ? `${username} | Lv.${level}` : `${username}`;
     // Если нет элемента — создаём!
     let profileEl = document.getElementById('user-profile');
     if (!profileEl) {
@@ -317,12 +323,12 @@ function showUserProfile(username, level) {
         profileEl.id = 'user-profile';
         profileEl.className = 'user-profile';
         profileEl.innerHTML = `
-            <span>${username} | Lv.${level}</span>
+            <span>${label}</span>
             <button id="logout-btn" class="btn btn-nav btn-small">Выйти</button>
         `;
         document.querySelector('.auth-buttons').parentNode.appendChild(profileEl);
     } else {
-        profileEl.querySelector('span').textContent = `${username} | Lv.${level}`;
+        profileEl.querySelector('span').textContent = label;
     }
     
     profileEl.style.display = 'flex';
@@ -359,7 +365,11 @@ window.addEventListener('load', async () => {
                 window.location.assign('/parent/');
                 return;
             }
-            showUserProfile(profile.username, profile.level);
+            if (profile.role === 'teacher' || profile.role === 'admin') {
+                window.location.assign('/teacher/');
+                return;
+            }
+            showUserProfile(profile.username, profile.level, profile.role);
         } catch (error) {
             localStorage.removeItem('token');
             localStorage.removeItem('refresh');

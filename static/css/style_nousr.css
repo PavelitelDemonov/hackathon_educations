@@ -92,6 +92,7 @@ body {
 }
 
 .btn {
+    display: inline-block;
     border: none;
     cursor: pointer;
     font-family: "Nunito", "Trebuchet MS", sans-serif;
@@ -100,6 +101,7 @@ body {
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     border-radius: 999px;
     padding: 11px 20px;
+    text-decoration: none;
 }
 
 .btn:focus-visible {

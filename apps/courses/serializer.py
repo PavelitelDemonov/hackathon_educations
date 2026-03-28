@@ -155,3 +155,48 @@ class LessonStepWithProgressSerializer(serializers.ModelSerializer):
             'completed_at': progress.completed_at.isoformat() if progress.completed_at else None,
         }
 
+
+class TeacherModuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Module
+        fields = ['id', 'name', 'language', 'order', 'description']
+
+
+class TeacherLessonSerializer(serializers.ModelSerializer):
+    module = serializers.PrimaryKeyRelatedField(read_only=True)
+    module_id = serializers.PrimaryKeyRelatedField(
+        queryset=Module.objects.all(),
+        source='module',
+        write_only=True,
+        required=False,
+    )
+
+    class Meta:
+        model = Lesson
+        fields = ['id', 'module', 'module_id', 'title', 'content', 'order', 'video_url']
+
+
+class TeacherLessonStepSerializer(serializers.ModelSerializer):
+    lesson = serializers.PrimaryKeyRelatedField(read_only=True)
+    lesson_id = serializers.PrimaryKeyRelatedField(
+        queryset=Lesson.objects.all(),
+        source='lesson',
+        write_only=True,
+        required=False,
+    )
+
+    class Meta:
+        model = LessonStep
+        fields = [
+            'id',
+            'lesson',
+            'lesson_id',
+            'order',
+            'step_type',
+            'title',
+            'content',
+            'config',
+            'xp_reward',
+            'is_required',
+        ]
+

@@ -2984,23 +2984,36 @@ function ensureCodePracticeState(segment) {
     if (!Number.isFinite(stepId)) {
         return null;
     }
-    const starterCode = String(
-        segment?.config?.starter_code
-        || segment?.config?.template
-        || segment?.config?.expected_code
-        || ""
-    );
+    const starterCode = String(segment?.config?.starter_code || "").trim();
+    const templateCode = String(segment?.config?.template || "").trim();
+    const expectedCode = String(segment?.config?.expected_code || "").trim();
+    const defaultCandidates = [starterCode, templateCode, expectedCode].filter(Boolean);
+
+    // Для итоговой практики поле должно быть пустым: ученик пишет код сам.
+    const initialCode = "";
     if (!codePracticeStateByStepId.has(stepId)) {
         codePracticeStateByStepId.set(stepId, {
-            code: starterCode,
+            code: initialCode,
             runOutput: "",
             statusMessage: "",
             statusType: "",
             isSubmitting: false,
-            isRunning: false
+            isRunning: false,
+            userEdited: false
         });
     }
-    return codePracticeStateByStepId.get(stepId);
+    const state = codePracticeStateByStepId.get(stepId);
+
+    // Чистим старый автопрефилл (если он остался из предыдущих версий),
+    // пока ученик сам не начал вводить код.
+    if (!state.userEdited && !isPracticeStepCompleted(stepId)) {
+        const normalizedStateCode = String(state.code || "").trim();
+        if (normalizedStateCode && defaultCandidates.includes(normalizedStateCode)) {
+            state.code = "";
+        }
+    }
+
+    return state;
 }
 
 function ensurePyodideRuntime() {
@@ -3122,6 +3135,7 @@ function renderCodePracticeSegment(lesson, segment) {
     editor.disabled = !state || state.isSubmitting || state.isRunning || isPracticeStepCompleted(segment.stepId);
     editor.addEventListener("input", () => {
         state.code = editor.value;
+        state.userEdited = true;
     });
     block.appendChild(editor);
 
@@ -3742,6 +3756,10 @@ async function initStudentDashboard() {
         const profile = await fetchProfile();
 
         if (profile.role !== "student" && profile.role !== "parent") {
+            if (profile.role === "teacher" || profile.role === "admin") {
+                window.location.replace("/teacher/");
+                return;
+            }
             window.location.replace("/");
             return;
         }

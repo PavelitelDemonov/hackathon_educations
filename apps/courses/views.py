@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from apps.users.permissions import IsTeacher
 from .models import Achievement, Lesson, LessonStep, Module, UserAchievement, UserProgress, UserStepProgress
 from .progress_services import (
     MODULE_XP as DEFAULT_MODULE_XP,
@@ -22,6 +23,9 @@ from .serializer import (
     LessonSerializer,
     LessonStepWithProgressSerializer,
     ModuleSerializer,
+    TeacherLessonSerializer,
+    TeacherLessonStepSerializer,
+    TeacherModuleSerializer,
     UserProgressSerializer,
 )
 
@@ -86,6 +90,132 @@ class ModuleDetailView(generics.RetrieveAPIView):
     queryset = Module.objects.all()
     serializer_class = ModuleSerializer
     permission_classes = [AllowAny]
+
+
+class TeacherModuleListCreateView(generics.ListCreateAPIView):
+    serializer_class = TeacherModuleSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        return Module.objects.all().order_by("order", "id")
+
+
+class TeacherModuleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TeacherModuleSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        return Module.objects.all()
+
+
+class TeacherLessonListCreateView(generics.ListCreateAPIView):
+    serializer_class = TeacherLessonSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        module_id = self.kwargs["module_id"]
+        return Lesson.objects.filter(module_id=module_id).order_by("order", "id")
+
+    def perform_create(self, serializer):
+        module = get_object_or_404(Module, id=self.kwargs["module_id"])
+        serializer.save(module=module)
+
+
+class TeacherLessonDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TeacherLessonSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        return Lesson.objects.all()
+
+
+class TeacherLessonStepListCreateView(generics.ListCreateAPIView):
+    serializer_class = TeacherLessonStepSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        lesson_id = self.kwargs["lesson_id"]
+        return LessonStep.objects.filter(lesson_id=lesson_id).order_by("order", "id")
+
+    def perform_create(self, serializer):
+        lesson = get_object_or_404(Lesson, id=self.kwargs["lesson_id"])
+        serializer.save(lesson=lesson)
+
+
+class TeacherLessonStepDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TeacherLessonStepSerializer
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get_queryset(self):
+        return LessonStep.objects.all()
+
+
+class TeacherCurriculumTreeView(APIView):
+    permission_classes = [IsAuthenticated, IsTeacher]
+
+    def get(self, request):
+        modules = Module.objects.all().order_by("order", "id")
+        lessons = (
+            Lesson.objects.filter(module__in=modules)
+            .select_related("module")
+            .order_by("module__order", "module_id", "order", "id")
+        )
+        steps = (
+            LessonStep.objects.filter(lesson__in=lessons)
+            .select_related("lesson")
+            .order_by("lesson__module__order", "lesson__order", "lesson_id", "order", "id")
+        )
+
+        lessons_by_module = {}
+        for lesson in lessons:
+            lessons_by_module.setdefault(lesson.module_id, []).append(
+                {
+                    "id": lesson.id,
+                    "module": lesson.module_id,
+                    "title": lesson.title,
+                    "content": lesson.content,
+                    "order": lesson.order,
+                    "video_url": lesson.video_url,
+                    "steps": [],
+                }
+            )
+
+        lesson_lookup = {}
+        for module_lessons in lessons_by_module.values():
+            for lesson_payload in module_lessons:
+                lesson_lookup[lesson_payload["id"]] = lesson_payload
+
+        for step in steps:
+            lesson_payload = lesson_lookup.get(step.lesson_id)
+            if lesson_payload is None:
+                continue
+            lesson_payload["steps"].append(
+                {
+                    "id": step.id,
+                    "lesson": step.lesson_id,
+                    "order": step.order,
+                    "step_type": step.step_type,
+                    "title": step.title,
+                    "content": step.content,
+                    "config": step.config,
+                    "xp_reward": step.xp_reward,
+                    "is_required": step.is_required,
+                }
+            )
+
+        payload = []
+        for module in modules:
+            payload.append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "language": module.language,
+                    "order": module.order,
+                    "description": module.description,
+                    "lessons": lessons_by_module.get(module.id, []),
+                }
+            )
+        return Response(payload)
 
 
 class LessonListView(generics.ListAPIView):

@@ -416,7 +416,7 @@
     "title": "Вопрос 3: напиши и запусти код",
     "content": "Напиши код, который создаёт переменную `name` со значением `\"Аня\"` и выводит её через `print()`.",
     "config": {
-      "starter_code": "name = \"Аня\"\nprint(name)",
+      "starter_code": "",
       "expected_code": "name = \"Аня\"\nprint(name)"
     },
     "xp_reward": 0,

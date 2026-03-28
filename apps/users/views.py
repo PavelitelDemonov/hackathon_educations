@@ -48,9 +48,6 @@ class ProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-class LoginView(CustomTokenObtainPairView):
-    pass
-
 class StudentDashboard(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
@@ -132,6 +129,32 @@ class ParentChildProgressView(APIView):
 
 class LoginView(CustomTokenObtainPairView):
     def post(self, request, *args, **kwargs):
+        username = str(request.data.get("username", "")).strip()
+        password = str(request.data.get("password", ""))
+
+        if not username or not password:
+            return Response(
+                {"detail": "Заполните логин и пароль."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            return Response(
+                {"detail": "Пользователь с таким никнеймом не найден."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not user.check_password(password):
+            return Response(
+                {"detail": "Неверный пароль."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not user.is_active:
+            return Response(
+                {"detail": "Аккаунт отключён."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         response = super().post(request, *args, **kwargs)
 
         if response.data.get('access'):

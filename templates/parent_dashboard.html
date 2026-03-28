@@ -19,6 +19,7 @@
                 <div class="auth-buttons">
                     <div class="profile-menu" id="parent-profile-menu">
                         <button class="btn btn-auth profile-chip" id="parent-profile-chip" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="parent-profile-menu-list">
+                            <img class="profile-chip__avatar" id="parent-profile-avatar" alt="Аватар родителя" hidden>
                             <span class="profile-chip__fallback" id="parent-profile-fallback">?</span>
                             <span class="profile-chip__label" id="parent-profile-label">Профиль</span>
                         </button>
@@ -121,6 +122,15 @@
                         <input class="profile-form__input" id="parent-form-role" type="text" readonly>
                     </label>
                 </div>
+                <div class="profile-avatar-editor">
+                    <h5 class="profile-avatar-editor__title">Аватар</h5>
+                    <div class="profile-avatar-editor__preview" id="parent-avatar-preview" role="button" tabindex="0" title="Нажмите, чтобы загрузить фото">
+                        <img class="profile-avatar-editor__img" id="parent-avatar-image" alt="Текущий аватар" hidden>
+                        <div class="profile-avatar-editor__placeholder" id="parent-avatar-placeholder">Аватар не загружен</div>
+                    </div>
+                    <button class="btn btn-primary" id="parent-avatar-open-editor" type="button">Настроить аватар</button>
+                    <input id="parent-avatar-input" type="file" accept="image/*" hidden>
+                </div>
 
                 <p class="profile-form__message" id="parent-profile-message"></p>
 
@@ -129,6 +139,34 @@
                     <button class="btn btn-primary" type="submit">Сохранить</button>
                 </div>
             </form>
+        </section>
+    </div>
+
+    <div class="avatar-modal" id="parent-avatar-modal" hidden>
+        <button class="avatar-modal__backdrop" type="button" data-close-parent-avatar-modal aria-label="Закрыть настройку аватара"></button>
+        <section class="avatar-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="parent-avatar-modal-title">
+            <header class="avatar-modal__header">
+                <h4 class="avatar-modal__title" id="parent-avatar-modal-title">Настройка аватарки</h4>
+                <button class="avatar-modal__close" type="button" data-close-parent-avatar-modal aria-label="Закрыть">×</button>
+            </header>
+
+            <div class="avatar-modal__body">
+                <div class="avatar-editor-stage">
+                    <canvas class="avatar-editor-stage__canvas" id="parent-avatar-editor-canvas" width="320" height="320" hidden></canvas>
+                    <div class="avatar-editor-stage__mask" aria-hidden="true"></div>
+                </div>
+
+                <label class="avatar-editor-controls__field">
+                    <span>Масштаб</span>
+                    <input id="parent-avatar-editor-zoom" type="range" min="1" max="3" step="0.01" value="1">
+                </label>
+            </div>
+
+            <footer class="avatar-modal__actions">
+                <button class="btn btn-nav" id="parent-avatar-editor-pick" type="button">Выбрать фото</button>
+                <button class="btn btn-nav" type="button" data-close-parent-avatar-modal>Отмена</button>
+                <button class="btn btn-primary" id="parent-avatar-editor-apply" type="button">Применить</button>
+            </footer>
         </section>
     </div>
 

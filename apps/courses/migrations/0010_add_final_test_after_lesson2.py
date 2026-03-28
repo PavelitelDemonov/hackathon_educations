@@ -36,7 +36,7 @@ FINAL_TEST_STEPS = [
             "и выводит её через `print()`."
         ),
         "config": {
-            "starter_code": 'name = "Аня"\nprint(name)',
+            "starter_code": "",
             "expected_code": 'name = "Аня"\nprint(name)',
         },
     },
