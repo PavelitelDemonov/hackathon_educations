@@ -28,5 +28,16 @@ class UserProgressSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProgress
-        fields = ['id', 'user', 'module', 'lesson', 'lesson_id', 'completed', 'score', 'module_reward_granted']
+        fields = [
+            'id',
+            'user',
+            'module',
+            'lesson',
+            'lesson_id',
+            'completed',
+            'score',
+            'viewed_slide_indexes',
+            'slides_completed',
+            'module_reward_granted',
+        ]
 

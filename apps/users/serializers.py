@@ -45,6 +45,12 @@ class ProfileSerializer(serializers.ModelSerializer):
             return obj.avatar.url
         return request.build_absolute_uri(obj.avatar.url)
 
+    def validate_child_username(self, value):
+        normalized = str(value or "").strip()
+        if self.instance and normalized and normalized == self.instance.username:
+            raise serializers.ValidationError("Нельзя указать себя как ребёнка.")
+        return normalized
+
     class Meta:
         model = User
         fields = [
@@ -53,6 +59,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'email',
+            'child_username',
             'avatar',
             'avatar_url',
             'role',

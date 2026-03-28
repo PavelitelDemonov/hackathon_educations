@@ -293,6 +293,10 @@ async function mockLogin(username, password) {
             window.location.assign('/student/');
             return { ok: true };
         }
+        if (profile.role === 'parent') {
+            window.location.assign('/parent/');
+            return { ok: true };
+        }
         
         // ПОКАЗАТЬ ПРОФИЛЬ (добавь в HTML!)
         showUserProfile(profile.username, profile.level);
@@ -350,6 +354,10 @@ window.addEventListener('load', async () => {
             const profile = await apiRequest('/auth/profile/');
             if (profile.role === 'student') {
                 window.location.assign('/student/');
+                return;
+            }
+            if (profile.role === 'parent') {
+                window.location.assign('/parent/');
                 return;
             }
             showUserProfile(profile.username, profile.level);

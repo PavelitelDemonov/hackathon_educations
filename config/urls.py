@@ -32,6 +32,7 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html'), name='home'),
     
     path('student/', TemplateView.as_view(template_name='student_dashboard.html'), name='student_home'),
+    path('parent/', TemplateView.as_view(template_name='parent_dashboard.html'), name='parent_home'),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema')),

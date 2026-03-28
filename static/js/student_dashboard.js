@@ -7,7 +7,15 @@ const langTrigger = document.getElementById("lang-trigger");
 const langMenu = document.getElementById("lang-menu");
 const activeLanguage = document.getElementById("active-language");
 const heroLanguage = document.getElementById("hero-language");
+const heroRoleCaptionEl = document.getElementById("hero-role-caption");
+const heroMainTitleEl = document.getElementById("hero-main-title");
 const tasksLanguage = document.getElementById("tasks-language");
+const tasksTitleEl = document.getElementById("tasks-title");
+const tasksSubtitleEl = document.getElementById("tasks-subtitle");
+const parentProgressNoteEl = document.getElementById("parent-progress-note");
+const achievementsPanelEl = document.getElementById("student-achievements-panel");
+const achievementsGridEl = document.getElementById("student-achievements-grid");
+const achievementToastStackEl = document.getElementById("achievement-toast-stack");
 
 const usernameEl = document.getElementById("student-username");
 const levelEl = document.getElementById("student-level");
@@ -48,6 +56,8 @@ const profileUsernameInput = document.getElementById("profile-username");
 const profileFirstNameInput = document.getElementById("profile-first-name");
 const profileLastNameInput = document.getElementById("profile-last-name");
 const profileEmailInput = document.getElementById("profile-email");
+const profileChildFieldEl = document.getElementById("profile-child-field");
+const profileChildUsernameInput = document.getElementById("profile-child-username");
 const profileRoleInput = document.getElementById("profile-role");
 const profileLevelInput = document.getElementById("profile-level");
 const profileAvatarPreviewEl = document.getElementById("profile-avatar-preview");
@@ -89,10 +99,19 @@ let lessonRequestSeq = 0;
 const completedLessonIds = new Set();
 const completedLessonIdsByModule = new Map();
 const lessonCompletionInFlight = new Set();
+const slideSyncInFlight = new Set();
 const rewardedModuleIds = new Set();
 const viewedSlidesByLessonId = new Map();
+let achievementsCache = [];
+const shownAchievementToastCodes = new Set();
 let lessonProgressStatusMessage = "";
+const VIEWED_SLIDES_STORAGE_PREFIX = "student_viewed_slides_v1";
+let viewedSlidesStorageLoadedFor = "";
+let localSlidesSyncDoneForStorageKey = "";
 let currentProfile = null;
+let currentRole = "";
+let isParentMode = false;
+let monitoredChildProfile = null;
 let avatarDraftBlob = null;
 let avatarDraftDirty = false;
 let avatarDraftPreviewUrl = "";
@@ -254,6 +273,287 @@ function setLessonProgressStatus(message) {
     lessonProgressStatusMessage = String(message || "").trim();
 }
 
+function getViewedSlidesOwnerUsername() {
+    if (isParentMode && monitoredChildProfile?.username) {
+        return monitoredChildProfile.username;
+    }
+    return currentProfile?.username || "";
+}
+
+function fillDashboardStats(sourceUser) {
+    const username = sourceUser?.username || "-";
+    const level = sourceUser?.level ?? "-";
+    const experience = sourceUser?.experience ?? sourceUser?.xp ?? "-";
+
+    usernameEl.textContent = username;
+    levelEl.textContent = level;
+    experienceEl.textContent = experience;
+}
+
+function setParentProgressNote(message = "") {
+    if (!parentProgressNoteEl) {
+        return;
+    }
+    const text = String(message || "").trim();
+    parentProgressNoteEl.textContent = text;
+    parentProgressNoteEl.hidden = !isParentMode || !text;
+}
+
+function applyRoleUi(role) {
+    currentRole = String(role || "");
+    isParentMode = currentRole === "parent";
+
+    if (tasksTab) {
+        tasksTab.textContent = isParentMode ? "Прогресс" : "Задания";
+    }
+    if (tasksTitleEl) {
+        const titlePrefixNode = tasksTitleEl.firstChild;
+        if (titlePrefixNode && titlePrefixNode.nodeType === Node.TEXT_NODE) {
+            titlePrefixNode.nodeValue = isParentMode ? "Прогресс ребёнка по " : "Задания по ";
+        }
+    }
+    if (tasksSubtitleEl) {
+        tasksSubtitleEl.textContent = isParentMode
+            ? "Здесь отображается учебный прогресс ребёнка по выбранному языку."
+            : "Выберите модуль. Список модулей подбирается под активный язык.";
+    }
+    if (heroRoleCaptionEl) {
+        heroRoleCaptionEl.textContent = isParentMode ? "Личный кабинет родителя" : "Личный кабинет ученика";
+    }
+    if (heroMainTitleEl) {
+        heroMainTitleEl.textContent = isParentMode ? "Главная родителя" : "Главная ученика";
+    }
+    if (profileChildFieldEl) {
+        profileChildFieldEl.hidden = !isParentMode;
+    }
+    if (achievementsPanelEl) {
+        achievementsPanelEl.hidden = isParentMode;
+    }
+    if (!isParentMode) {
+        setParentProgressNote("");
+    }
+}
+
+function normalizeAchievementCode(rawCode) {
+    return String(rawCode || "").trim().toLowerCase();
+}
+
+function showAchievementToast(achievement) {
+    if (!achievementToastStackEl || isParentMode) {
+        return;
+    }
+
+    const code = normalizeAchievementCode(achievement?.code);
+    if (code && shownAchievementToastCodes.has(code)) {
+        return;
+    }
+    if (code) {
+        shownAchievementToastCodes.add(code);
+    }
+
+    const toast = document.createElement("article");
+    toast.className = "achievement-toast";
+    toast.setAttribute("role", "status");
+
+    const label = document.createElement("p");
+    label.className = "achievement-toast__label";
+    label.textContent = "Новое достижение";
+
+    const title = document.createElement("p");
+    title.className = "achievement-toast__name";
+    title.textContent = achievement?.name || "Достижение открыто";
+
+    toast.appendChild(label);
+    toast.appendChild(title);
+    achievementToastStackEl.appendChild(toast);
+
+    const removeToast = () => {
+        toast.classList.add("is-hiding");
+        window.setTimeout(() => {
+            toast.remove();
+        }, 220);
+    };
+
+    window.requestAnimationFrame(() => {
+        toast.classList.add("is-visible");
+    });
+    window.setTimeout(removeToast, 3600);
+    toast.addEventListener("click", removeToast);
+}
+
+function renderAchievements(achievements) {
+    if (!achievementsGridEl) {
+        return;
+    }
+    achievementsGridEl.innerHTML = "";
+
+    const list = Array.isArray(achievements) ? achievements : [];
+    if (!list.length) {
+        const empty = document.createElement("p");
+        empty.className = "student-note";
+        empty.textContent = "Достижения пока не получены.";
+        achievementsGridEl.appendChild(empty);
+        return;
+    }
+
+    list.forEach((achievement) => {
+        const card = document.createElement("article");
+        card.className = "student-achievement-card";
+        if (achievement?.unlocked) {
+            card.classList.add("is-unlocked");
+        }
+
+        const title = document.createElement("p");
+        title.className = "student-achievement-card__name";
+        title.textContent = achievement?.name || "Достижение";
+
+        const meta = document.createElement("p");
+        meta.className = "student-achievement-card__meta";
+        if (achievement?.unlocked) {
+            meta.textContent = "Открыто";
+        } else if (Number(achievement?.xp_required) > 0) {
+            meta.textContent = `Нужно XP: ${achievement.xp_required}`;
+        } else {
+            meta.textContent = "Скрыто до выполнения условия";
+        }
+
+        card.appendChild(title);
+        card.appendChild(meta);
+        achievementsGridEl.appendChild(card);
+    });
+}
+
+function applyNewAchievements(newAchievements) {
+    const incoming = Array.isArray(newAchievements) ? newAchievements : [];
+    if (!incoming.length) {
+        return;
+    }
+
+    incoming.forEach((item) => showAchievementToast(item));
+
+    if (!Array.isArray(achievementsCache)) {
+        achievementsCache = [];
+    }
+
+    const indexByCode = new Map();
+    achievementsCache.forEach((achievement, index) => {
+        const code = normalizeAchievementCode(achievement?.code);
+        if (code) {
+            indexByCode.set(code, index);
+        }
+    });
+
+    incoming.forEach((item) => {
+        const code = normalizeAchievementCode(item?.code);
+        if (code && indexByCode.has(code)) {
+            const index = indexByCode.get(code);
+            const existing = achievementsCache[index] || {};
+            achievementsCache[index] = {
+                ...existing,
+                id: item?.id ?? existing.id,
+                code: item?.code || existing.code,
+                name: item?.name || existing.name,
+                unlocked: true
+            };
+            return;
+        }
+
+        const appended = {
+            id: item?.id ?? null,
+            code: item?.code || code,
+            name: item?.name || "Достижение",
+            xp_required: 0,
+            unlocked: true,
+            unlocked_at: new Date().toISOString()
+        };
+        achievementsCache.push(appended);
+        if (code) {
+            indexByCode.set(code, achievementsCache.length - 1);
+        }
+    });
+
+    renderAchievements(achievementsCache);
+}
+
+function getViewedSlidesStorageKey(usernameValue) {
+    const username = String(usernameValue || getViewedSlidesOwnerUsername() || "").trim().toLowerCase();
+    if (!username) {
+        return "";
+    }
+    return `${VIEWED_SLIDES_STORAGE_PREFIX}:${username}`;
+}
+
+function loadViewedSlidesFromStorage(usernameValue) {
+    const storageKey = getViewedSlidesStorageKey(usernameValue);
+    if (!storageKey) {
+        return;
+    }
+    if (viewedSlidesStorageLoadedFor && viewedSlidesStorageLoadedFor !== storageKey) {
+        viewedSlidesByLessonId.clear();
+    }
+
+    try {
+        const rawData = localStorage.getItem(storageKey);
+        if (!rawData) {
+            viewedSlidesStorageLoadedFor = storageKey;
+            return;
+        }
+
+        const parsed = JSON.parse(rawData);
+        if (!parsed || typeof parsed !== "object") {
+            viewedSlidesStorageLoadedFor = storageKey;
+            return;
+        }
+
+        Object.entries(parsed).forEach(([lessonIdRaw, slideIndexesRaw]) => {
+            const lessonId = Number(lessonIdRaw);
+            if (!Number.isFinite(lessonId) || !Array.isArray(slideIndexesRaw)) {
+                return;
+            }
+            const set = new Set();
+            slideIndexesRaw.forEach((slideIndexRaw) => {
+                const slideIndex = Number(slideIndexRaw);
+                if (Number.isInteger(slideIndex) && slideIndex >= 0) {
+                    set.add(slideIndex);
+                }
+            });
+            if (set.size > 0) {
+                const existing = viewedSlidesByLessonId.get(lessonId);
+                if (existing) {
+                    set.forEach((index) => existing.add(index));
+                } else {
+                    viewedSlidesByLessonId.set(lessonId, set);
+                }
+            }
+        });
+    } catch (error) {
+        // Игнорируем невалидный localStorage и начинаем с пустой истории.
+    }
+
+    viewedSlidesStorageLoadedFor = storageKey;
+}
+
+function persistViewedSlidesToStorage() {
+    const storageKey = getViewedSlidesStorageKey();
+    if (!storageKey || viewedSlidesStorageLoadedFor !== storageKey) {
+        return;
+    }
+
+    const payload = {};
+    viewedSlidesByLessonId.forEach((slideIndexesSet, lessonId) => {
+        if (!(slideIndexesSet instanceof Set) || !slideIndexesSet.size) {
+            return;
+        }
+        payload[String(lessonId)] = Array.from(slideIndexesSet).sort((a, b) => a - b);
+    });
+
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch (error) {
+        // Переполненный localStorage не должен ломать UI.
+    }
+}
+
 function normalizeAvatarUrl(rawUrl) {
     const value = String(rawUrl || "").trim();
     if (!value) {
@@ -382,6 +682,9 @@ function populateProfileForm(profile) {
     }
     if (profileEmailInput) {
         profileEmailInput.value = profile.email || "";
+    }
+    if (profileChildUsernameInput) {
+        profileChildUsernameInput.value = profile.child_username || "";
     }
     if (profileRoleInput) {
         profileRoleInput.value = profile.role_display || profile.role || "";
@@ -889,6 +1192,9 @@ profileFormEl?.addEventListener("submit", async (event) => {
     formData.append("first_name", (profileFirstNameInput?.value || "").trim());
     formData.append("last_name", (profileLastNameInput?.value || "").trim());
     formData.append("email", (profileEmailInput?.value || "").trim());
+    if (isParentMode) {
+        formData.append("child_username", (profileChildUsernameInput?.value || "").trim());
+    }
 
     if (avatarDraftDirty && avatarDraftBlob) {
         formData.append("avatar", avatarDraftBlob, "avatar.jpg");
@@ -906,8 +1212,12 @@ profileFormEl?.addEventListener("submit", async (event) => {
         }
 
         currentProfile = payload;
+        applyRoleUi(payload.role);
         fillProfile(payload);
         populateProfileForm(payload);
+        if (isParentMode) {
+            await refreshParentMonitoringData();
+        }
         setProfileMessage("Профиль сохранён.", "success");
     } catch (error) {
         setProfileMessage(error?.message || "Не удалось сохранить профиль.", "error");
@@ -1106,10 +1416,94 @@ async function fetchUserProgress() {
     return response.json();
 }
 
+async function fetchAchievements() {
+    const response = await authFetch("/auth/courses/achievements/", {
+        headers: {
+            "Content-Type": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error("Не удалось загрузить достижения");
+    }
+
+    return response.json();
+}
+
+async function fetchParentChildProgress() {
+    const response = await authFetch("/auth/parent/child-progress/", {
+        headers: {
+            "Content-Type": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error("Не удалось загрузить прогресс ребёнка");
+    }
+
+    return response.json();
+}
+
+async function syncLocalViewedSlidesToServer() {
+    if (isParentMode) {
+        return null;
+    }
+
+    const storageKey = getViewedSlidesStorageKey();
+    if (!storageKey || localSlidesSyncDoneForStorageKey === storageKey) {
+        return null;
+    }
+
+    const lessonsPayload = [];
+    viewedSlidesByLessonId.forEach((slideIndexesSet, lessonId) => {
+        if (!Number.isFinite(Number(lessonId))) {
+            return;
+        }
+        if (!(slideIndexesSet instanceof Set) || !slideIndexesSet.size) {
+            return;
+        }
+        lessonsPayload.push({
+            lesson_id: Number(lessonId),
+            viewed_slide_indexes: Array.from(slideIndexesSet).sort((a, b) => a - b)
+        });
+    });
+
+    localSlidesSyncDoneForStorageKey = storageKey;
+    if (!lessonsPayload.length) {
+        return null;
+    }
+
+    const response = await authFetch("/auth/courses/progress/sync-slides/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            lessons: lessonsPayload
+        })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        localSlidesSyncDoneForStorageKey = "";
+        const detail = payload?.error || payload?.detail || "Не удалось синхронизировать локальный прогресс";
+        throw new Error(detail);
+    }
+
+    if (Array.isArray(payload?.progress)) {
+        syncProgressState(payload.progress);
+    }
+    applyUserXpFromPayload(payload?.user);
+    applyNewAchievements(payload?.new_achievements);
+    renderModulesForActiveLanguage();
+    return payload;
+}
+
 function syncProgressState(progressItems) {
     completedLessonIds.clear();
     completedLessonIdsByModule.clear();
     rewardedModuleIds.clear();
+    viewedSlidesByLessonId.clear();
 
     (Array.isArray(progressItems) ? progressItems : []).forEach((item) => {
         const lessonId = Number(
@@ -1125,10 +1519,58 @@ function syncProgressState(progressItems) {
                 completedLessonIdsByModule.get(moduleId).add(lessonId);
             }
         }
+        const viewedIndexes = Array.isArray(item?.viewed_slide_indexes) ? item.viewed_slide_indexes : [];
+        if (Number.isFinite(lessonId) && viewedIndexes.length) {
+            const normalizedSet = new Set();
+            viewedIndexes.forEach((indexRaw) => {
+                const index = Number(indexRaw);
+                if (Number.isInteger(index) && index >= 0) {
+                    normalizedSet.add(index);
+                }
+            });
+            if (normalizedSet.size) {
+                viewedSlidesByLessonId.set(lessonId, normalizedSet);
+            }
+        }
         if (item?.module_reward_granted && typeof item?.module === "number") {
             rewardedModuleIds.add(item.module);
         }
     });
+    persistViewedSlidesToStorage();
+}
+
+async function refreshParentMonitoringData() {
+    if (!isParentMode) {
+        return;
+    }
+
+    try {
+        const payload = await fetchParentChildProgress();
+        monitoredChildProfile = payload?.child || null;
+        syncProgressState(payload?.progress || []);
+
+        if (monitoredChildProfile) {
+            fillDashboardStats(monitoredChildProfile);
+            loadViewedSlidesFromStorage(monitoredChildProfile.username);
+            setParentProgressNote(`Отслеживается ученик: ${monitoredChildProfile.username}`);
+        } else {
+            fillDashboardStats({ username: "Ребёнок не выбран", level: "-", experience: "-" });
+            loadViewedSlidesFromStorage(currentProfile?.username);
+            setParentProgressNote(payload?.message || "Укажите ник ребёнка в профиле.");
+        }
+    } catch (error) {
+        monitoredChildProfile = null;
+        completedLessonIds.clear();
+        completedLessonIdsByModule.clear();
+        rewardedModuleIds.clear();
+        fillDashboardStats({ username: "Ошибка загрузки", level: "-", experience: "-" });
+        setParentProgressNote("Не удалось загрузить прогресс ребёнка.");
+    }
+
+    renderModulesForActiveLanguage();
+    if (activeModuleId && !lessonViewerEl.hidden) {
+        renderActiveLesson();
+    }
 }
 
 function getCompletedLessonsForModule(moduleId) {
@@ -1194,12 +1636,11 @@ function fillProfile(profile) {
     currentProfile = profile;
     const username = profile.username || "-";
     const level = profile.level ?? "-";
-    const experience = profile.experience ?? "-";
     const avatarRawUrl = profile?.avatar_url || profile?.avatar || "";
 
-    usernameEl.textContent = username;
-    levelEl.textContent = level;
-    experienceEl.textContent = experience;
+    if (!isParentMode) {
+        fillDashboardStats(profile);
+    }
     setHeaderProfileChip(username, level, avatarRawUrl);
 }
 
@@ -1643,13 +2084,21 @@ function applyUserXpFromPayload(userPayload) {
     setHeaderProfileChip(username, level, avatarRawUrl);
 }
 
-async function completeLesson(lessonId) {
+async function completeLesson(lessonId, options = {}) {
+    const bodyPayload = {};
+    if (Number.isInteger(options?.slideIndex)) {
+        bodyPayload.slide_index = options.slideIndex;
+    }
+    if (Number.isInteger(options?.totalSlides)) {
+        bodyPayload.total_slides = options.totalSlides;
+    }
+
     const response = await authFetch(`/auth/courses/lessons/${lessonId}/complete/`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({})
+        body: JSON.stringify(bodyPayload)
     });
 
     const payload = await response.json().catch(() => ({}));
@@ -1668,6 +2117,19 @@ async function completeLesson(lessonId) {
             completedLessonIdsByModule.get(moduleId).add(lessonId);
         }
     }
+    const viewedIndexes = Array.isArray(payload?.progress?.viewed_slide_indexes)
+        ? payload.progress.viewed_slide_indexes
+        : [];
+    if (viewedIndexes.length) {
+        const set = getViewedSlidesSet(lessonId);
+        viewedIndexes.forEach((indexRaw) => {
+            const index = Number(indexRaw);
+            if (Number.isInteger(index) && index >= 0) {
+                set.add(index);
+            }
+        });
+        persistViewedSlidesToStorage();
+    }
     if (payload?.module?.reward_granted && typeof payload?.module?.id === "number") {
         rewardedModuleIds.add(payload.module.id);
     }
@@ -1675,8 +2137,37 @@ async function completeLesson(lessonId) {
         moduleLessonTotals.set(payload.module.id, payload.module.total_lessons);
     }
     applyUserXpFromPayload(payload?.user);
+    applyNewAchievements(payload?.new_achievements);
     renderModulesForActiveLanguage();
     return payload;
+}
+
+async function syncCurrentSlideProgress(lesson, slideIndex, totalSlides) {
+    if (isParentMode) {
+        return;
+    }
+    const lessonId = Number(lesson?.id);
+    if (!Number.isFinite(lessonId) || !Number.isInteger(slideIndex) || !Number.isInteger(totalSlides)) {
+        return;
+    }
+
+    const syncKey = `${lessonId}:${slideIndex}`;
+    if (slideSyncInFlight.has(syncKey)) {
+        return;
+    }
+    slideSyncInFlight.add(syncKey);
+
+    try {
+        await completeLesson(lessonId, { slideIndex, totalSlides });
+        setLessonProgressStatus("");
+        renderLessonProgressOverview();
+    } catch (error) {
+        setLessonProgressStatus("ошибка сохранения прогресса");
+        console.error("Не удалось сохранить слайд:", error);
+        renderLessonProgressOverview();
+    } finally {
+        slideSyncInFlight.delete(syncKey);
+    }
 }
 
 async function saveLessonProgressFallback(lesson) {
@@ -1716,6 +2207,10 @@ async function saveLessonProgressFallback(lesson) {
 }
 
 async function completeCurrentLessonIfNeeded() {
+    if (isParentMode) {
+        return true;
+    }
+
     const currentLesson = currentLessons[currentLessonIndex];
     if (!currentLesson || completedLessonIds.has(currentLesson.id)) {
         return true;
@@ -1729,7 +2224,10 @@ async function completeCurrentLessonIfNeeded() {
 
     lessonCompletionInFlight.add(currentLesson.id);
     try {
-        await completeLesson(currentLesson.id);
+        await completeLesson(currentLesson.id, {
+            slideIndex: currentSectionIndex,
+            totalSlides: currentLessonSections.length
+        });
         setLessonProgressStatus("");
         return true;
     } catch (error) {
@@ -1804,7 +2302,15 @@ function renderActiveLesson() {
         currentSectionIndex = 0;
     }
 
-    getViewedSlidesSet(lesson.id).add(currentSectionIndex);
+    const viewedSlidesSet = getViewedSlidesSet(lesson.id);
+    const wasViewedBefore = viewedSlidesSet.has(currentSectionIndex);
+    if (completedLessonIds.has(lesson.id)) {
+        for (let i = 0; i < currentLessonSections.length; i += 1) {
+            viewedSlidesSet.add(i);
+        }
+    }
+    viewedSlidesSet.add(currentSectionIndex);
+    persistViewedSlidesToStorage();
 
     const section = currentLessonSections[currentSectionIndex];
     lessonTitleEl.textContent = lesson.title || "Без названия";
@@ -1820,6 +2326,10 @@ function renderActiveLesson() {
     lessonNextBtn.textContent = isLastSlide ? "Завершить" : "Далее";
     renderLessonList();
     renderLessonProgressOverview();
+
+    if (!wasViewedBefore && !completedLessonIds.has(lesson.id)) {
+        void syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
+    }
 
     if (currentSectionIndex === currentLessonSections.length - 1 && !completedLessonIds.has(lesson.id)) {
         void completeCurrentLessonIfNeeded();
@@ -1964,10 +2474,12 @@ async function initStudentDashboard() {
     try {
         const profile = await fetchProfile();
 
-        if (profile.role !== "student") {
+        if (profile.role !== "student" && profile.role !== "parent") {
             window.location.replace("/");
             return;
         }
+        applyRoleUi(profile.role);
+        fillProfile(profile);
 
         try {
             const modules = await fetchModules();
@@ -1976,15 +2488,31 @@ async function initStudentDashboard() {
             allModules = [];
         }
 
-        try {
-            const progressItems = await fetchUserProgress();
-            syncProgressState(progressItems);
-        } catch (progressError) {
-            completedLessonIds.clear();
-            rewardedModuleIds.clear();
+        if (isParentMode) {
+            await refreshParentMonitoringData();
+        } else {
+            try {
+                const progressItems = await fetchUserProgress();
+                syncProgressState(progressItems);
+            } catch (progressError) {
+                completedLessonIds.clear();
+                completedLessonIdsByModule.clear();
+                rewardedModuleIds.clear();
+            }
+            loadViewedSlidesFromStorage(profile.username);
+            try {
+                await syncLocalViewedSlidesToServer();
+            } catch (syncError) {
+                console.warn("Не удалось синхронизировать локальный прогресс:", syncError);
+            }
+            try {
+                achievementsCache = await fetchAchievements();
+            } catch (achievementsError) {
+                achievementsCache = [];
+            }
+            renderAchievements(achievementsCache);
         }
 
-        fillProfile(profile);
         setLanguage(activeLanguageKey);
         setActiveTab("home");
     } catch (error) {

@@ -16,6 +16,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     path('student/', views.StudentDashboard.as_view(), name='student_dashboard'),
+    path('parent/child-progress/', views.ParentChildProgressView.as_view(), name='parent_child_progress'),
     path('teacher/', views.TeacherDashboard.as_view(), name='teacher_dashboard'),
     path('admin/', views.AdminDashboard.as_view(), name='admin_dashboard'),
     

@@ -51,8 +51,8 @@
         <section class="hero student-hero panel-home" id="panel-home">
             <div class="container">
                 <div class="hero-banner">
-                    <p class="hero-age">Личный кабинет ученика</p>
-                    <h1 class="hero-title">Главная ученика</h1>
+                    <p class="hero-age" id="hero-role-caption">Личный кабинет ученика</p>
+                    <h1 class="hero-title" id="hero-main-title">Главная ученика</h1>
                     <p class="hero-subtitle">
                         Текущий язык: <strong id="hero-language">Python</strong>. По каждому языку позже подключим отдельные задания.
                     </p>
@@ -80,13 +80,18 @@
                 <div class="student-note">
                     Главная страница пока показывает только уровень и опыт, как ты и просил.
                 </div>
+                <section class="student-achievements" id="student-achievements-panel">
+                    <h3 class="student-achievements__title">Достижения</h3>
+                    <div class="student-achievements__grid" id="student-achievements-grid"></div>
+                </section>
             </div>
         </section>
 
         <section class="available-courses student-summary panel-tasks" id="panel-tasks" hidden>
             <div class="container">
-                <h2 class="section-title">Задания по <span id="tasks-language">Python</span></h2>
-                <p class="tasks-subtitle">Выберите модуль. Список модулей подбирается под активный язык.</p>
+                <h2 class="section-title" id="tasks-title">Задания по <span id="tasks-language">Python</span></h2>
+                <p class="tasks-subtitle" id="tasks-subtitle">Выберите модуль. Список модулей подбирается под активный язык.</p>
+                <div class="student-note" id="parent-progress-note" hidden></div>
                 <div class="student-modules-grid" id="student-modules-list"></div>
                 <div class="student-note" id="student-modules-empty" hidden>Для этого языка пока нет модулей.</div>
 
@@ -156,6 +161,10 @@
                         <span>Email</span>
                         <input class="profile-form__input" id="profile-email" type="email" maxlength="254" placeholder="example@mail.com">
                     </label>
+                    <label class="profile-form__field" id="profile-child-field" hidden>
+                        <span>Ник ребёнка</span>
+                        <input class="profile-form__input" id="profile-child-username" type="text" maxlength="150" placeholder="Введите ник ученика">
+                    </label>
                     <label class="profile-form__field">
                         <span>Роль</span>
                         <input class="profile-form__input" id="profile-role" type="text" readonly>
@@ -213,6 +222,8 @@
             </footer>
         </section>
     </div>
+
+    <div class="achievement-toast-stack" id="achievement-toast-stack" aria-live="polite" aria-atomic="false"></div>
 
     <script src="{% static 'js/student_dashboard.js' %}"></script>
 </body>
