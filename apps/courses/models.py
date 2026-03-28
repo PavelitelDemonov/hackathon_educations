@@ -12,7 +12,7 @@ class Lesson(models.Model):
     title = models.CharField(max_length=200)
     content = models.TextField()
     order = models.PositiveIntegerField(default=0)
-    video_url = models.URLField(blank=True)
+    video_url = models.URLField(blank=True, null=True)
 
 
 class LessonStep(models.Model):

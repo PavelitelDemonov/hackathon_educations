@@ -18,9 +18,9 @@ class RegisterSerializers(serializers.ModelSerializer):
        return User.objects.create_user(**validated_data)
 
     def validate_role(self, value):
-        allowed_roles = ['student', 'parent','teacher']
+        allowed_roles = ['student', 'parent', 'teacher']
         if value not in allowed_roles:
-            raise serializers.ValidationError("Только для студентов/родителей")
+            raise serializers.ValidationError("Только для студентов/родителей/учителей")
         return value
     
     def validate(self, data):
