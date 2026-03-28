@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.password_validation import validate_password
 
 from .models import User
@@ -37,13 +35,55 @@ class RegisterSerializers(serializers.ModelSerializer):
     
 class ProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    avatar_url = serializers.SerializerMethodField(read_only=True)
+
+    def get_avatar_url(self, obj):
+        if not obj.avatar:
+            return ""
+        request = self.context.get("request")
+        if request is None:
+            return obj.avatar.url
+        return request.build_absolute_uri(obj.avatar.url)
+
+    def validate_child_username(self, value):
+        normalized = str(value or "").strip()
+        request = self.context.get("request")
+        actor = getattr(request, "user", None) or self.instance
+        actor_role = getattr(actor, "role", "")
+
+        if normalized and actor_role != "parent":
+            raise serializers.ValidationError("Поле ребёнка доступно только родителю.")
+        if self.instance and normalized and normalized == self.instance.username:
+            raise serializers.ValidationError("Нельзя указать себя как ребёнка.")
+        return normalized
 
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'role', 'role_display', 'level', 'experience', 'date_joined'
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'child_username',
+            'avatar',
+            'avatar_url',
+            'role',
+            'role_display',
+            'level',
+            'experience',
+            'date_joined',
         ]
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = [
+            'id',
+            'username',
+            'role',
+            'role_display',
+            'level',
+            'experience',
+            'date_joined',
+            'avatar_url',
+        ]
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField() 

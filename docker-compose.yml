@@ -1,45 +1,31 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: hackathon
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass123
-    ports:
-      - "5433:5432"
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d hackathon"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
+    ports:
+      - "5433:5432"
 
   django:
     build: .
-    command: >  
+    command: >
       sh -c "
-        echo '=== Waiting for PostgreSQL ===';
-        sleep 20;
-        echo '=== DB ready, running migrations ===';
+        echo '=== Running migrations ===';
         python manage.py migrate --noinput;
         echo '=== Starting Django server ===';
         python manage.py runserver 0.0.0.0:8000
       "
-    volumes:
-      - .:/code
+    env_file:
+      - .env
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=1
-      - DB_NAME=hackathon
-      - DB_USER=user
-      - DB_PASSWORD=pass123
-      - DB_HOST=db
-      - DB_PORT=5432
-      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
     depends_on:
       db:
         condition: service_healthy

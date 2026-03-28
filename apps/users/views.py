@@ -1,6 +1,8 @@
+from django.db.models import Count
+from rest_framework import generics, status, viewsets
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated , AllowAny, IsAdminUser
-from rest_framework import generics, status, viewsets
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 
@@ -8,6 +10,8 @@ from .serializers import RegisterSerializers, ProfileSerializer, LoginSerializer
 from .permissions import IsStudent, IsTeacher, IsAdmin
 
 from .models import User
+from apps.courses.models import UserProgress
+from apps.courses.serializer import UserProgressSerializer
 
 
 class RegisterView(generics.CreateAPIView):
@@ -30,21 +34,19 @@ class RegisterView(generics.CreateAPIView):
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get(self, request):
-        serializer = ProfileSerializer(request.user)
+        serializer = ProfileSerializer(request.user, context={"request": request})
         return Response(serializer.data)
 
     def patch(self, request):
-        serializer = ProfileSerializer(request.user, data=request.data, partial=True)
+        serializer = ProfileSerializer(request.user, data=request.data, partial=True, context={"request": request})
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(ProfileSerializer(request.user, context={"request": request}).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-
-class LoginView(CustomTokenObtainPairView):
-    pass
 
 class StudentDashboard(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
@@ -77,10 +79,82 @@ class AdminDashboard(APIView):
             "total_users": User.objects.count(),
             "user_roles": dict(User.objects.values_list('role').annotate(count=Count('role')))
         })
+
+
+class ParentChildProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != "parent":
+            return Response({"detail": "Доступ только для родителей."}, status=status.HTTP_403_FORBIDDEN)
+
+        child_username = str(request.user.child_username or "").strip()
+        if not child_username:
+            return Response(
+                {
+                    "child": None,
+                    "child_username": "",
+                    "progress": [],
+                    "message": "Укажите ник ребёнка в профиле."
+                }
+            )
+
+        child = User.objects.filter(username=child_username, role="student").first()
+        if child is None:
+            return Response(
+                {
+                    "child": None,
+                    "child_username": child_username,
+                    "progress": [],
+                    "message": "Ученик с таким ником не найден."
+                }
+            )
+
+        progress_qs = UserProgress.objects.filter(user=child).order_by("module_id", "lesson_id")
+        progress_data = UserProgressSerializer(progress_qs, many=True).data
+        return Response(
+            {
+                "child_username": child.username,
+                "child": {
+                    "id": child.id,
+                    "username": child.username,
+                    "level": child.level,
+                    "experience": child.experience,
+                },
+                "progress": progress_data,
+                "message": ""
+            }
+        )
     
 
 class LoginView(CustomTokenObtainPairView):
     def post(self, request, *args, **kwargs):
+        username = str(request.data.get("username", "")).strip()
+        password = str(request.data.get("password", ""))
+
+        if not username or not password:
+            return Response(
+                {"detail": "Заполните логин и пароль."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            return Response(
+                {"detail": "Пользователь с таким никнеймом не найден."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not user.check_password(password):
+            return Response(
+                {"detail": "Неверный пароль."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not user.is_active:
+            return Response(
+                {"detail": "Аккаунт отключён."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         response = super().post(request, *args, **kwargs)
 
         if response.data.get('access'):

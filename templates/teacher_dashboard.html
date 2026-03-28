@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Завозик - Кабинет учителя</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style_nousr.css' %}">
+    <link rel="stylesheet" href="{% static 'css/teacher_dashboard.css' %}">
+</head>
+<body class="teacher-dashboard-page">
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Завозик</div>
+                <nav class="nav-buttons" aria-label="Навигация учителя">
+                    <button class="btn btn-nav is-active-tab" id="teacher-tab-home" type="button">Главная</button>
+                    <button class="btn btn-nav" id="teacher-tab-tasks" type="button">Задания</button>
+                </nav>
+                <div class="auth-buttons">
+                    <div class="profile-menu" id="teacher-profile-menu">
+                        <button class="btn btn-auth profile-chip" id="teacher-profile-chip" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="teacher-profile-menu-list">
+                            <img class="profile-chip__avatar" id="teacher-profile-avatar" alt="Аватар учителя" hidden>
+                            <span class="profile-chip__fallback" id="teacher-profile-fallback">?</span>
+                            <span class="profile-chip__label" id="teacher-profile-label">Профиль</span>
+                        </button>
+                        <div class="profile-menu__list" id="teacher-profile-menu-list" role="menu" hidden>
+                            <button class="profile-menu__item" id="teacher-profile-open" type="button" role="menuitem">Профиль</button>
+                            <button class="profile-menu__item profile-menu__item--danger" id="teacher-logout-btn" type="button" role="menuitem">Выход</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero teacher-hero">
+            <div class="container">
+                <div class="hero-banner">
+                    <p class="hero-age">Личный кабинет учителя</p>
+                    <h1 class="hero-title">Управление курсами</h1>
+                    <p class="hero-subtitle">Добавляй и редактируй модули, уроки и задания из вкладки «Задания».</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="available-courses teacher-panel" id="teacher-home-panel">
+            <div class="container">
+                <h2 class="section-title">Главная</h2>
+                <div class="teacher-stats-grid">
+                    <article class="teacher-stat-card">
+                        <h3>Модулей</h3>
+                        <p id="teacher-stat-modules">0</p>
+                    </article>
+                    <article class="teacher-stat-card">
+                        <h3>Уроков</h3>
+                        <p id="teacher-stat-lessons">0</p>
+                    </article>
+                    <article class="teacher-stat-card">
+                        <h3>Заданий</h3>
+                        <p id="teacher-stat-steps">0</p>
+                    </article>
+                </div>
+                <div class="teacher-note">Во вкладке «Задания» доступны создание и редактирование учебного контента.</div>
+            </div>
+        </section>
+
+        <section class="available-courses teacher-panel" id="teacher-tasks-panel" hidden>
+            <div class="container">
+                <h2 class="section-title">Задания</h2>
+                <p class="teacher-note" id="teacher-task-message">Выбери модуль, затем урок и редактируй задания.</p>
+                <div class="teacher-editor-grid">
+                    <section class="teacher-column">
+                        <h3>Модули</h3>
+                        <form class="teacher-form" id="teacher-module-form">
+                            <label>
+                                <span>Название</span>
+                                <input id="teacher-module-name" type="text" maxlength="200" required>
+                            </label>
+                            <label>
+                                <span>Язык</span>
+                                <input id="teacher-module-language" type="text" maxlength="200" placeholder="Python">
+                            </label>
+                            <label>
+                                <span>Порядок</span>
+                                <input id="teacher-module-order" type="number" min="0" value="1" required>
+                            </label>
+                            <label>
+                                <span>Описание</span>
+                                <textarea id="teacher-module-description" rows="3" required></textarea>
+                            </label>
+                            <div class="teacher-form__actions">
+                                <button class="btn btn-primary" id="teacher-module-submit" type="submit">Создать модуль</button>
+                                <button class="btn btn-nav" id="teacher-module-cancel" type="button" hidden>Отмена</button>
+                            </div>
+                        </form>
+                        <div class="teacher-list" id="teacher-modules-list"></div>
+                    </section>
+
+                    <section class="teacher-column">
+                        <h3>Уроки</h3>
+                        <form class="teacher-form" id="teacher-lesson-form">
+                            <label>
+                                <span>Название урока</span>
+                                <input id="teacher-lesson-title" type="text" maxlength="200" required>
+                            </label>
+                            <label>
+                                <span>Порядок</span>
+                                <input id="teacher-lesson-order" type="number" min="0" value="1" required>
+                            </label>
+                            <label>
+                                <span>Ссылка на видео</span>
+                                <input id="teacher-lesson-video" type="url" maxlength="200" placeholder="https://...">
+                            </label>
+                            <label>
+                                <span>Краткий контент</span>
+                                <textarea id="teacher-lesson-content" rows="4" placeholder="Краткое описание урока" required></textarea>
+                            </label>
+                            <div class="teacher-form__actions">
+                                <button class="btn btn-primary" id="teacher-lesson-submit" type="submit">Создать урок</button>
+                                <button class="btn btn-nav" id="teacher-lesson-cancel" type="button" hidden>Отмена</button>
+                            </div>
+                        </form>
+                        <div class="teacher-list" id="teacher-lessons-list"></div>
+                    </section>
+
+                    <section class="teacher-column">
+                        <h3>Задания</h3>
+                        <form class="teacher-form" id="teacher-step-form">
+                            <label>
+                                <span>Тип задания</span>
+                                <select id="teacher-step-type" required>
+                                    <option value="theory">theory</option>
+                                    <option value="practice_drag">practice_drag</option>
+                                    <option value="practice_code">practice_code</option>
+                                    <option value="quiz">quiz</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Порядок</span>
+                                <input id="teacher-step-order" type="number" min="0" value="1" required>
+                            </label>
+                            <label>
+                                <span>XP</span>
+                                <input id="teacher-step-xp" type="number" min="0" value="0" required>
+                            </label>
+                            <label>
+                                <span>Обязательное</span>
+                                <select id="teacher-step-required">
+                                    <option value="true">Да</option>
+                                    <option value="false">Нет</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Заголовок</span>
+                                <input id="teacher-step-title" type="text" maxlength="200">
+                            </label>
+                            <label>
+                                <span>Текст задания</span>
+                                <textarea id="teacher-step-content" rows="4"></textarea>
+                            </label>
+                            <label>
+                                <span>Config (JSON)</span>
+                                <textarea id="teacher-step-config" rows="4">{}</textarea>
+                            </label>
+                            <div class="teacher-form__actions">
+                                <button class="btn btn-primary" id="teacher-step-submit" type="submit">Создать задание</button>
+                                <button class="btn btn-nav" id="teacher-step-cancel" type="button" hidden>Отмена</button>
+                            </div>
+                        </form>
+                        <div class="teacher-list" id="teacher-steps-list"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="profile-modal" id="teacher-profile-modal" hidden>
+        <button class="profile-modal__backdrop" type="button" data-close-teacher-profile aria-label="Закрыть профиль"></button>
+        <section class="profile-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="teacher-profile-title">
+            <header class="profile-modal__header">
+                <h4 class="profile-modal__title" id="teacher-profile-title">Профиль учителя</h4>
+                <button class="profile-modal__close" type="button" data-close-teacher-profile aria-label="Закрыть">×</button>
+            </header>
+            <form class="profile-form" id="teacher-profile-form">
+                <div class="profile-form__grid">
+                    <label class="profile-form__field">
+                        <span>Никнейм</span>
+                        <input class="profile-form__input" id="teacher-form-username" type="text" readonly>
+                    </label>
+                    <label class="profile-form__field">
+                        <span>Имя</span>
+                        <input class="profile-form__input" id="teacher-form-first-name" type="text" maxlength="150" placeholder="Введите имя">
+                    </label>
+                    <label class="profile-form__field">
+                        <span>Фамилия</span>
+                        <input class="profile-form__input" id="teacher-form-last-name" type="text" maxlength="150" placeholder="Введите фамилию">
+                    </label>
+                    <label class="profile-form__field">
+                        <span>Email</span>
+                        <input class="profile-form__input" id="teacher-form-email" type="email" maxlength="254" placeholder="example@mail.com">
+                    </label>
+                    <label class="profile-form__field">
+                        <span>Роль</span>
+                        <input class="profile-form__input" id="teacher-form-role" type="text" readonly>
+                    </label>
+                </div>
+                <div class="profile-avatar-editor">
+                    <h5 class="profile-avatar-editor__title">Аватар</h5>
+                    <div class="profile-avatar-editor__preview" id="teacher-avatar-preview" role="button" tabindex="0" title="Нажмите, чтобы загрузить фото">
+                        <img class="profile-avatar-editor__img" id="teacher-avatar-image" alt="Текущий аватар" hidden>
+                        <div class="profile-avatar-editor__placeholder" id="teacher-avatar-placeholder">Аватар не загружен</div>
+                    </div>
+                    <button class="btn btn-primary" id="teacher-avatar-open-editor" type="button">Настроить аватар</button>
+                    <input id="teacher-avatar-input" type="file" accept="image/*" hidden>
+                </div>
+                <p class="profile-form__message" id="teacher-profile-message"></p>
+                <div class="profile-form__actions">
+                    <button class="btn btn-nav" type="button" data-close-teacher-profile>Отмена</button>
+                    <button class="btn btn-primary" type="submit">Сохранить</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div class="avatar-modal" id="teacher-avatar-modal" hidden>
+        <button class="avatar-modal__backdrop" type="button" data-close-teacher-avatar-modal aria-label="Закрыть настройку аватара"></button>
+        <section class="avatar-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="teacher-avatar-modal-title">
+            <header class="avatar-modal__header">
+                <h4 class="avatar-modal__title" id="teacher-avatar-modal-title">Настройка аватарки</h4>
+                <button class="avatar-modal__close" type="button" data-close-teacher-avatar-modal aria-label="Закрыть">×</button>
+            </header>
+
+            <div class="avatar-modal__body">
+                <div class="avatar-editor-stage">
+                    <canvas class="avatar-editor-stage__canvas" id="teacher-avatar-editor-canvas" width="320" height="320" hidden></canvas>
+                    <div class="avatar-editor-stage__mask" aria-hidden="true"></div>
+                </div>
+
+                <label class="avatar-editor-controls__field">
+                    <span>Масштаб</span>
+                    <input id="teacher-avatar-editor-zoom" type="range" min="1" max="3" step="0.01" value="1">
+                </label>
+            </div>
+
+            <footer class="avatar-modal__actions">
+                <button class="btn btn-nav" id="teacher-avatar-editor-pick" type="button">Выбрать фото</button>
+                <button class="btn btn-nav" type="button" data-close-teacher-avatar-modal>Отмена</button>
+                <button class="btn btn-primary" id="teacher-avatar-editor-apply" type="button">Применить</button>
+            </footer>
+        </section>
+    </div>
+
+    <script src="{% static 'js/teacher_dashboard.js' %}"></script>
+</body>
+</html>

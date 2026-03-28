@@ -37,9 +37,9 @@ body {
     font-family: "Nunito", "Trebuchet MS", sans-serif;
     color: var(--ink);
     background:
-        radial-gradient(circle at 8% 12%, rgba(255, 122, 24, 0.18) 0%, transparent 34%),
-        radial-gradient(circle at 92% 10%, rgba(31, 184, 255, 0.2) 0%, transparent 32%),
-        radial-gradient(circle at 86% 85%, rgba(255, 94, 168, 0.14) 0%, transparent 28%),
+        radial-gradient(circle at 8% 12%, rgba(255, 201, 24, 0.753) 0%, transparent 34%),
+        radial-gradient(circle at 92% 10%, rgba(255, 201, 24, 0.753) 0%, transparent 32%),
+        radial-gradient(circle at 86% 85%, rgba(255, 201, 24, 0.753) 0%, transparent 34%),
         linear-gradient(140deg, var(--bg-1) 0%, var(--bg-2) 52%, var(--bg-3) 100%);
     min-height: 100vh;
     line-height: 1.5;
@@ -56,9 +56,14 @@ body {
     top: 0;
     z-index: 100;
     backdrop-filter: blur(10px);
-    background: linear-gradient(120deg, rgba(255, 122, 24, 0.92), rgba(255, 179, 71, 0.9), rgba(31, 184, 255, 0.9));
+    background: linear-gradient(120deg, rgba(255, 122, 24, 0.92), rgba(255, 179, 71, 0.9), rgba(255, 122, 24, 0.92));
     border-bottom: 1px solid rgba(255, 255, 255, 0.35);
     box-shadow: 0 6px 24px rgba(22, 40, 90, 0.2);
+}
+
+/* Pull the logo block slightly closer to the left screen edge on desktop. */
+.header .container {
+    padding-left: 0;
 }
 
 .header-content {
@@ -76,6 +81,7 @@ body {
     color: #fff;
     letter-spacing: 0.4px;
     text-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    margin-left: -300px;
 }
 
 .nav-buttons,
@@ -86,6 +92,7 @@ body {
 }
 
 .btn {
+    display: inline-block;
     border: none;
     cursor: pointer;
     font-family: "Nunito", "Trebuchet MS", sans-serif;
@@ -94,6 +101,7 @@ body {
     transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     border-radius: 999px;
     padding: 11px 20px;
+    text-decoration: none;
 }
 
 .btn:focus-visible {
@@ -114,7 +122,7 @@ body {
 
 .btn-auth {
     color: #fff;
-    background: linear-gradient(135deg, #ff5ea8 0%, #ff2f7c 100%);
+    background: linear-gradient(135deg, #ff3636 0%, #e62828 100%);
     box-shadow: 0 8px 18px rgba(255, 47, 124, 0.32);
 }
 
@@ -134,37 +142,8 @@ body {
     padding: 56px 26px 60px;
     border-radius: var(--radius-xl);
     color: #fff;
-    background:
-        radial-gradient(circle at 14% 18%, rgba(255, 255, 255, 0.25) 0%, transparent 28%),
-        radial-gradient(circle at 86% 76%, rgba(255, 255, 255, 0.2) 0%, transparent 25%),
-        linear-gradient(130deg, #6548ff 0%, #1aa7ff 48%, #00c49a 100%);
+    background: linear-gradient(130deg, #6548ff 0%, #1aa7ff 48%, #00c49a 100%);
     box-shadow: 0 14px 38px rgba(30, 60, 130, 0.3);
-}
-
-.hero-banner::before,
-.hero-banner::after {
-    content: "";
-    position: absolute;
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.hero-banner::before {
-    width: 180px;
-    height: 180px;
-    top: -72px;
-    right: -56px;
-    background: rgba(255, 255, 255, 0.16);
-    animation: floatBlob 8s ease-in-out infinite;
-}
-
-.hero-banner::after {
-    width: 130px;
-    height: 130px;
-    bottom: -48px;
-    left: -42px;
-    background: rgba(255, 255, 255, 0.14);
-    animation: floatBlob 10s ease-in-out infinite reverse;
 }
 
 .hero-age {
@@ -181,9 +160,6 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.hero-age::before {
-    content: "⭐";
-}
 
 .hero-title {
     font-family: "Baloo 2", "Verdana", sans-serif;
@@ -217,38 +193,20 @@ body {
 }
 
 .courses-grid {
-    display: flex;
-    flex-wrap: nowrap;
-    justify-content: center;
+    display: grid;
+    gap: 20px;
+    padding: 4px 0 12px;
+}
+
+.course-row {
+    display: grid;
+    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+    gap: 18px;
     align-items: stretch;
-    gap: 22px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 6px 2px 14px;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: thin;
-    scrollbar-color: #9dc5ff rgba(255, 255, 255, 0.6);
-}
-
-.courses-grid::-webkit-scrollbar {
-    height: 10px;
-}
-
-.courses-grid::-webkit-scrollbar-track {
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.55);
-}
-
-.courses-grid::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: linear-gradient(90deg, #7fb0ff, #67e0c5);
 }
 
 .course-card-main {
     position: relative;
-    flex: 0 0 290px;
-    min-width: 290px;
-    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     background: linear-gradient(165deg, var(--surface) 0%, var(--surface-soft) 100%);
@@ -261,38 +219,15 @@ body {
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-.course-card-main::before {
-    content: "";
-    position: absolute;
-    top: -45px;
-    right: -35px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    opacity: 0.2;
-}
-
-.course-card-main:nth-child(1)::before {
-    background: #ffcf33;
-}
-
-.course-card-main:nth-child(2)::before {
-    background: #4dd6ff;
-}
-
-.course-card-main:nth-child(3)::before {
-    background: #8df08a;
-}
-
-.course-card-main:nth-child(1) {
+.course-row:nth-child(1) .course-card-main {
     border-color: rgba(255, 191, 44, 0.42);
 }
 
-.course-card-main:nth-child(2) {
+.course-row:nth-child(2) .course-card-main {
     border-color: rgba(54, 182, 255, 0.4);
 }
 
-.course-card-main:nth-child(3) {
+.course-row:nth-child(3) .course-card-main {
     border-color: rgba(62, 199, 126, 0.42);
 }
 
@@ -319,12 +254,41 @@ body {
 }
 
 .course-desc {
-    min-height: 70px;
+    min-height: 0;
     color: var(--ink-soft);
     font-size: 17px;
     font-weight: 700;
     line-height: 1.35;
     margin-bottom: 14px;
+}
+
+.course-outcome {
+    border: 2px solid rgba(31, 42, 68, 0.12);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(160deg, #ffffff 0%, #f5faff 100%);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-soft);
+}
+
+.course-outcome-title {
+    margin: 0 0 12px;
+    font-family: "Baloo 2", "Verdana", sans-serif;
+    font-size: 29px;
+    line-height: 1.15;
+    color: var(--ink);
+}
+
+.course-outcome-list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--ink-soft);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.course-outcome-list li + li {
+    margin-top: 8px;
 }
 
 .course-level {
@@ -640,13 +604,15 @@ body.modal-open {
     }
 
     .courses-grid {
-        justify-content: flex-start;
         gap: 16px;
     }
 
+    .course-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
     .course-card-main {
-        flex: 0 0 255px;
-        min-width: 255px;
         padding: 20px 18px;
     }
 
@@ -655,7 +621,19 @@ body.modal-open {
     }
 
     .course-desc {
-        min-height: 64px;
+        min-height: 0;
+        font-size: 16px;
+    }
+
+    .course-outcome {
+        padding: 18px 16px;
+    }
+
+    .course-outcome-title {
+        font-size: 25px;
+    }
+
+    .course-outcome-list {
         font-size: 16px;
     }
 
@@ -709,12 +687,11 @@ body.modal-open {
     }
 
     .courses-grid {
-        padding-bottom: 12px;
+        gap: 14px;
     }
 
     .course-card-main {
-        flex: 0 0 235px;
-        min-width: 235px;
+        padding: 18px 14px;
     }
 
     .course-emoji {
@@ -728,6 +705,15 @@ body.modal-open {
 
     .course-desc {
         font-size: 15px;
+    }
+
+    .course-outcome-title {
+        font-size: 22px;
+    }
+
+    .course-outcome-list {
+        font-size: 15px;
+        padding-left: 18px;
     }
 
     .cta-section h2 {

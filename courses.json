@@ -1,0 +1,1002 @@
+[
+{
+  "model": "courses.module",
+  "pk": 2,
+  "fields": {
+    "name": "Модуль 1",
+    "language": "Python",
+    "order": 1,
+    "description": "Ознакомление с языком Python"
+  }
+},
+{
+  "model": "courses.module",
+  "pk": 3,
+  "fields": {
+    "name": "Модуль 2",
+    "language": "Python",
+    "order": 2,
+    "description": "if/elif/else"
+  }
+},
+{
+  "model": "courses.lesson",
+  "pk": 3,
+  "fields": {
+    "module": 2,
+    "title": "Урок 1. Знакомство с языком Python",
+    "content": "Структура урока перенесена в шаги LessonStep.",
+    "order": 1,
+    "video_url": "https://rutube.ru/video/0f57fcfc87f9d7f73fb3f1b2f71df62c/?playlist=35943"
+  }
+},
+{
+  "model": "courses.lesson",
+  "pk": 4,
+  "fields": {
+    "module": 2,
+    "title": "Урок 2. Переменные",
+    "content": "Структура урока перенесена в шаги LessonStep.",
+    "order": 2,
+    "video_url": "rutube"
+  }
+},
+{
+  "model": "courses.lesson",
+  "pk": 5,
+  "fields": {
+    "module": 2,
+    "title": "Итоговый тест модуля 1",
+    "content": "Итоговый тест: теория + практика + код.",
+    "order": 3,
+    "video_url": ""
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 1,
+  "fields": {
+    "lesson": 3,
+    "order": 1,
+    "step_type": "theory",
+    "title": "Знакомство с Python",
+    "content": "Привет! Добро пожаловать в мир программирования!\n\nНа этом уроке ты узнаешь:\n- что такое Python;\n- почему с него начинают многие будущие программисты;\n- где используется Python;\n- почему он такой популярный;\n- как с его помощью можно сделать свои первые проекты.\n\nPython — это специальный язык, с помощью которого люди “объясняют” компьютеру, что нужно делать.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 2,
+  "fields": {
+    "lesson": 3,
+    "order": 2,
+    "step_type": "theory",
+    "title": "Что можно создавать на Python",
+    "content": "На Python можно создавать:\n- игры;\n- чат-ботов;\n- сайты;\n- умные программы;\n- полезных роботов.\n\nНа уроке ты поймёшь, что программирование — это не что-то страшное и сложное, а интересный способ придумывать, создавать и управлять технологиями.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 3,
+  "fields": {
+    "lesson": 3,
+    "order": 3,
+    "step_type": "theory",
+    "title": "Первый шаг в мир кода",
+    "content": "Сегодня ты сделаешь первый шаг в мир кода и начнёшь знакомство с языком, на котором пишут программы по всему миру.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 4,
+  "fields": {
+    "lesson": 3,
+    "order": 4,
+    "step_type": "theory",
+    "title": "История создания Python",
+    "content": "А теперь давай узнаем, откуда вообще появился Python.\n\nДавным-давно, в конце прошлого века, жил программист по имени **Гвидо ван Россум**. Он много работал с компьютерами и заметил одну проблему: некоторые языки программирования были слишком сложными, запутанными и неудобными для новичков.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 5,
+  "fields": {
+    "lesson": 3,
+    "order": 5,
+    "step_type": "theory",
+    "title": "Почему появился Python",
+    "content": "Чтобы написать даже простую программу, нужно было помнить много непонятных правил.\n\nИ тогда Гвидо подумал:\n\n> “А что, если создать такой язык программирования, который будет проще, понятнее и дружелюбнее?”\n\nТак и началась история Python.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 6,
+  "fields": {
+    "lesson": 3,
+    "order": 6,
+    "step_type": "theory",
+    "title": "Идея языка",
+    "content": "Гвидо хотел придумать язык, на котором код будет:\n- выглядеть аккуратно;\n- читаться почти как обычный текст;\n- быть понятным самому программисту.\n\nЕму было важно, чтобы человек мог не только писать команды для компьютера, но и сам легко понимать свой код.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 7,
+  "fields": {
+    "lesson": 3,
+    "order": 7,
+    "step_type": "theory",
+    "title": "Почему Python так называется",
+    "content": "Название **Python** появилось не из-за змеи, как думают многие.\n\nНа самом деле Гвидо выбрал это слово потому, что ему нравилось весёлое британское шоу **Monty Python**.\n\nОн хотел, чтобы название языка было:\n- коротким;\n- необычным;\n- легко запоминалось.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 8,
+  "fields": {
+    "lesson": 3,
+    "order": 8,
+    "step_type": "theory",
+    "title": "Python становится популярным",
+    "content": "Со временем Python начал нравиться всё большему количеству людей.\n\nЕго стали использовать:\n- школьники;\n- студенты;\n- учёные;\n- разработчики игр;\n- создатели сайтов;\n- специалисты по роботам;\n- специалисты по искусственному интеллекту.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 9,
+  "fields": {
+    "lesson": 3,
+    "order": 9,
+    "step_type": "theory",
+    "title": "Python сегодня",
+    "content": "Сегодня Python — один из самых известных языков программирования в мире.\n\nА самое интересное в том, что его история началась с очень простой идеи:\n\n**сделать программирование понятным для людей.**",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 10,
+  "fields": {
+    "lesson": 3,
+    "order": 10,
+    "step_type": "theory",
+    "title": "Команда `print()` — первое слово компьютеру",
+    "content": "Теперь, когда ты уже немного познакомился с Python, пора узнать одну из самых первых и самых важных команд.\n\nЭта команда называется `print()`.\n\nС её помощью можно показать на экране:\n- текст;\n- число;\n- результат работы программы.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 11,
+  "fields": {
+    "lesson": 3,
+    "order": 11,
+    "step_type": "theory",
+    "title": "Что делает `print()`",
+    "content": "Можно сказать, что `print()` — это способ попросить компьютер что-то сказать или показать пользователю.\n\nНапример:\n\n```python\nprint(\"Привет, мир!\")",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 12,
+  "fields": {
+    "lesson": 3,
+    "order": 12,
+    "step_type": "theory",
+    "title": "Первая практика, это так волнительно!!",
+    "content": "Попробуй из представленных кусочков, сделать полноценный рабочий код!",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 13,
+  "fields": {
+    "lesson": 3,
+    "order": 13,
+    "step_type": "practice_drag",
+    "title": "Практика: собери print()",
+    "content": "Перетащи кусочки в правильном порядке, чтобы получилась команда.",
+    "config": {
+      "answer": [
+        "print",
+        "(Привет, мир!)"
+      ],
+      "tokens": [
+        "(Привет, мир!)",
+        "print"
+      ]
+    },
+    "xp_reward": 25,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 14,
+  "fields": {
+    "lesson": 3,
+    "order": 14,
+    "step_type": "practice_drag",
+    "title": "Ну и немного повышенной сложности",
+    "content": "Перетащи кусочки в правильном порядке, чтобы получилась команда.",
+    "config": {
+      "answer": [
+        "print",
+        "(a)"
+      ],
+      "tokens": [
+        "(a)",
+        "print"
+      ]
+    },
+    "xp_reward": 25,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 15,
+  "fields": {
+    "lesson": 4,
+    "order": 1,
+    "step_type": "theory",
+    "title": "Что такое переменная",
+    "content": "Переменная в программировании — это именованная ячейка памяти.\n\nВ неё можно положить значение, чтобы потом использовать его в коде.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 16,
+  "fields": {
+    "lesson": 4,
+    "order": 2,
+    "step_type": "theory",
+    "title": "Простая аналогия",
+    "content": "Представь коробку с наклейкой.\n\nНаклейка — это имя переменной, а то, что внутри коробки — значение.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 17,
+  "fields": {
+    "lesson": 4,
+    "order": 3,
+    "step_type": "theory",
+    "title": "Как создать переменную в Python",
+    "content": "В Python переменная создаётся через знак `=`.\n\nПример:\n\n```python\nname = \"Аня\"\nage = 10\n```",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 18,
+  "fields": {
+    "lesson": 4,
+    "order": 4,
+    "step_type": "theory",
+    "title": "Какие бывают значения",
+    "content": "В переменных можно хранить:\n- текст;\n- числа;\n- `True/False`.\n\nЭто основа почти любой программы.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 19,
+  "fields": {
+    "lesson": 4,
+    "order": 5,
+    "step_type": "theory",
+    "title": "Зачем нужны переменные",
+    "content": "Переменные помогают программе запоминать данные:\n- имя игрока;\n- очки;\n- количество жизней;\n- текущий уровень.",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 20,
+  "fields": {
+    "lesson": 4,
+    "order": 6,
+    "step_type": "theory",
+    "title": "Показываем значение через print()",
+    "content": "Чтобы вывести значение переменной на экран, используй `print()`.\n\n```python\nname = \"Аня\"\nprint(name)\n```",
+    "config": {},
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 21,
+  "fields": {
+    "lesson": 4,
+    "order": 7,
+    "step_type": "practice_drag",
+    "title": "Практика: собери переменную",
+    "content": "Собери правильную запись переменной с именем `name` и значением `\"Аня\"`.",
+    "config": {
+      "answer": [
+        "name=",
+        "\"Аня\""
+      ],
+      "tokens": [
+        "\"Аня\"",
+        "name="
+      ]
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 22,
+  "fields": {
+    "lesson": 5,
+    "order": 1,
+    "step_type": "quiz",
+    "title": "Вопрос 1: что такое переменная?",
+    "content": "Выбери верное утверждение про переменную.",
+    "config": {
+      "options": [
+        {
+          "text": "Переменная хранит данные под именем.",
+          "value": "a"
+        },
+        {
+          "text": "Переменная нужна только для картинок.",
+          "value": "b"
+        },
+        {
+          "text": "Переменная всегда равна 0.",
+          "value": "c"
+        }
+      ],
+      "question": "Что верно про переменную в Python?",
+      "correct_answer": "a"
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 23,
+  "fields": {
+    "lesson": 5,
+    "order": 2,
+    "step_type": "practice_drag",
+    "title": "Вопрос 2: собери запись переменной",
+    "content": "Собери выражение `name=\"Аня\"` из кусочков.",
+    "config": {
+      "answer": [
+        "name",
+        "=",
+        "\"Аня\""
+      ],
+      "tokens": [
+        "=",
+        "name",
+        "\"Аня\""
+      ]
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 24,
+  "fields": {
+    "lesson": 5,
+    "order": 3,
+    "step_type": "practice_code",
+    "title": "Вопрос 3: напиши и запусти код",
+    "content": "Напиши код, который создаёт переменную `name` со значением `\"Аня\"` и выводит её через `print()`.",
+    "config": {
+      "starter_code": "",
+      "expected_code": "name = \"Аня\"\nprint(name)"
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.lessonstep",
+  "pk": 25,
+  "fields": {
+    "lesson": 3,
+    "order": 15,
+    "step_type": "practice_code",
+    "title": "Немного кодим",
+    "content": "Вывести цифру 5 через переменню",
+    "config": {
+      "starter_code": "",
+      "expected_code": "digital = 5\nprint(digital)"
+    },
+    "xp_reward": 0,
+    "is_required": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 1,
+  "fields": {
+    "user": 1,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "slides_completed": 15,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 2,
+  "fields": {
+    "user": 1,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "slides_completed": 7,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 3,
+  "fields": {
+    "user": 3,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [],
+    "slides_completed": 0,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 4,
+  "fields": {
+    "user": 3,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [],
+    "slides_completed": 0,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 5,
+  "fields": {
+    "user": 4,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "slides_completed": 11,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 6,
+  "fields": {
+    "user": 4,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0
+    ],
+    "slides_completed": 1,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 7,
+  "fields": {
+    "user": 4,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0
+    ],
+    "slides_completed": 1,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 8,
+  "fields": {
+    "user": 5,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "slides_completed": 11,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 9,
+  "fields": {
+    "user": 5,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0
+    ],
+    "slides_completed": 1,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 10,
+  "fields": {
+    "user": 5,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0
+    ],
+    "slides_completed": 1,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 11,
+  "fields": {
+    "user": 1,
+    "module": 2,
+    "lesson": 5,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2
+    ],
+    "slides_completed": 3,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 12,
+  "fields": {
+    "user": 6,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "slides_completed": 14,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 13,
+  "fields": {
+    "user": 6,
+    "module": 2,
+    "lesson": 4,
+    "completed": false,
+    "score": null,
+    "viewed_slide_indexes": [
+      0
+    ],
+    "slides_completed": 1,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 14,
+  "fields": {
+    "user": 7,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "slides_completed": 14,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 15,
+  "fields": {
+    "user": 7,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "slides_completed": 7,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 16,
+  "fields": {
+    "user": 7,
+    "module": 2,
+    "lesson": 5,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2
+    ],
+    "slides_completed": 3,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 17,
+  "fields": {
+    "user": 8,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "slides_completed": 14,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 18,
+  "fields": {
+    "user": 8,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "slides_completed": 7,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 19,
+  "fields": {
+    "user": 8,
+    "module": 2,
+    "lesson": 5,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2
+    ],
+    "slides_completed": 3,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 20,
+  "fields": {
+    "user": 9,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "slides_completed": 14,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 21,
+  "fields": {
+    "user": 9,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "slides_completed": 7,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 22,
+  "fields": {
+    "user": 9,
+    "module": 2,
+    "lesson": 5,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2
+    ],
+    "slides_completed": 3,
+    "module_reward_granted": true
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 23,
+  "fields": {
+    "user": 11,
+    "module": 2,
+    "lesson": 3,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "slides_completed": 15,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 24,
+  "fields": {
+    "user": 11,
+    "module": 2,
+    "lesson": 4,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "slides_completed": 7,
+    "module_reward_granted": false
+  }
+},
+{
+  "model": "courses.userprogress",
+  "pk": 25,
+  "fields": {
+    "user": 11,
+    "module": 2,
+    "lesson": 5,
+    "completed": true,
+    "score": null,
+    "viewed_slide_indexes": [
+      0,
+      1,
+      2
+    ],
+    "slides_completed": 3,
+    "module_reward_granted": true
+  }
+}
+]

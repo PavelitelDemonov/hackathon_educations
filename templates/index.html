@@ -14,9 +14,9 @@
             <div class="header-content">
                 <div class="logo">Завозик</div>
                 <nav class="nav-buttons">
-                    <button class="btn btn-nav">Курсы</button>
-                    <button class="btn btn-nav">О нас</button>
-                    <button class="btn btn-nav">Контакты</button>
+                    <a class="btn btn-nav" href="#courses">Курсы</a>
+                    <a class="btn btn-nav" href="#about">О нас</a>
+                    <a class="btn btn-nav" href="#contacts">Контакты</a>
                 </nav>
                 <div class="auth-buttons">
                     <button class="btn btn-auth">Вход</button>
@@ -31,7 +31,6 @@
         <section class="hero">
             <div class="container">
                 <div class="hero-banner">
-                    <p class="hero-age">Для ребят 7-15 лет</p>
                     <h1 class="hero-title">Учись программировать, играя!</h1>
                     <p class="hero-subtitle">Короткие уроки, мини-игры и реальные проекты</p>
                 </div>
@@ -39,43 +38,67 @@
         </section>
 
         <!-- Available Courses Section -->
-        <section class="available-courses">
+        <section class="available-courses" id="courses">
             <div class="container">
                 <h2 class="section-title">Выбери свою миссию</h2>
-                
+
                 <div class="courses-grid">
-                    <!-- Python Course -->
-                    <div class="course-card-main">
-                        <img src="static/images/python.png" alt="Python" class="course-emoji" width="100" height="100">
-                        <h3 class="course-title">Python</h3>
-                        <p class="course-desc">Легкий старт</p>
-                        <div class="course-level">Возраст 7-11</div>
-                        <button class="btn btn-course-main">Начать курс</button>
-                    </div>
+                    <article class="course-row">
+                        <div class="course-card-main">
+                            <img src="static/images/python.png" alt="Python" class="course-emoji" width="100" height="100">
+                            <h3 class="course-title">Python</h3>
+                            <p class="course-desc">Легкий старт</p>
+                            <button class="btn btn-course-main">Начать курс</button>
+                        </div>
+                        <div class="course-outcome">
+                            <h3 class="course-outcome-title">Что ждет обучающегося на курсе</h3>
+                            <ul class="course-outcome-list">
+                                <li>Первые шаги в Python через короткие игровые задачи.</li>
+                                <li>Мини-проекты: викторина, калькулятор и простой бот.</li>
+                                <li>Понимание базовых алгоритмов и уверенный старт.</li>
+                            </ul>
+                        </div>
+                    </article>
 
-                    <!-- Java Course -->
-                    <div class="course-card-main">
-                        <img src="static/images/java.png" alt="Java" class="course-emoji" width="100" height="100">
-                        <h3 class="course-title">Java</h3>
-                        <p class="course-desc">Создавай приложения</p>
-                        <div class="course-level">Возраст 10-13</div>
-                        <button class="btn btn-course-main">Начать курс</button>
-                    </div>
+                    <article class="course-row">
+                        <div class="course-card-main">
+                            <img src="static/images/java.png" alt="Java" class="course-emoji" width="100" height="100">
+                            <h3 class="course-title">Java</h3>
+                            <p class="course-desc">Создавай приложения</p>
+                            <button class="btn btn-course-main">Начать курс</button>
+                        </div>
+                        <div class="course-outcome">
+                            <h3 class="course-outcome-title">Что ждет обучающегося на курсе</h3>
+                            <ul class="course-outcome-list">
+                                <li>Основы Java: классы, объекты, условия и циклы.</li>
+                                <li>Практика на простых приложениях и консольных играх.</li>
+                                <li>Навык писать аккуратный и понятный код.</li>
+                            </ul>
+                        </div>
+                    </article>
 
-                    <!-- C++ Course -->
-                    <div class="course-card-main">
-                        <img src="static/images/С++.png" alt="C++" class="course-emoji" width="100" height="100">
-                        <h3 class="course-title">C&#43;&#43;</h3>
-                        <p class="course-desc">Прокачай логику</p>
-                        <div class="course-level">Возраст 12-15</div>
-                        <button class="btn btn-course-main">Начать курс</button>
-                    </div>
+                    <article class="course-row">
+                        <div class="course-card-main">
+                            <img src="static/images/С++.png" alt="C++" class="course-emoji" width="100" height="100">
+                            <h3 class="course-title">C&#43;&#43;</h3>
+                            <p class="course-desc">Прокачай логику</p>
+                            <button class="btn btn-course-main">Начать курс</button>
+                        </div>
+                        <div class="course-outcome">
+                            <h3 class="course-outcome-title">Что ждет обучающегося на курсе</h3>
+                            <ul class="course-outcome-list">
+                                <li>Тренировка логики, структур данных и алгоритмов.</li>
+                                <li>Разбор задач по шагам и развитие инженерного мышления.</li>
+                                <li>Сборка первых программ на C++ с понятной структурой.</li>
+                            </ul>
+                        </div>
+                    </article>
                 </div>
             </div>
         </section>
 
         <!-- CTA Section -->
-        <section class="cta-section">
+        <section class="cta-section" id="about">
             <div class="container">
                 <h2>Готов(а) к первому уровню?</h2>
                 <p>Зарегистрируйся и открой полный доступ ко всем миссиям</p>
@@ -85,7 +108,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="footer" id="contacts">
         <div class="container">
             <p>&copy; 2026 Завозик. Все права защищены.</p>
         </div>

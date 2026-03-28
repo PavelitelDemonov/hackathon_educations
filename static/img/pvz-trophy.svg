@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Золотой кубок">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff08c"/>
+      <stop offset="45%" stop-color="#f5c635"/>
+      <stop offset="100%" stop-color="#cf8f11"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe16e"/>
+      <stop offset="100%" stop-color="#c4830d"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="20" fill="#f6f8fc"/>
+  <g transform="translate(0 8)">
+    <ellipse cx="160" cy="48" rx="72" ry="24" fill="url(#g1)" stroke="#a56e09" stroke-width="4"/>
+    <path d="M95 48h130l-18 86c-4 22-23 38-47 38s-43-16-47-38z" fill="url(#g1)" stroke="#a56e09" stroke-width="4"/>
+    <path d="M92 64c-24 0-40 14-40 34 0 20 16 35 39 35h19" fill="none" stroke="#c28611" stroke-width="14" stroke-linecap="round"/>
+    <path d="M228 64c24 0 40 14 40 34 0 20-16 35-39 35h-19" fill="none" stroke="#c28611" stroke-width="14" stroke-linecap="round"/>
+    <rect x="138" y="174" width="44" height="34" rx="8" fill="url(#g2)" stroke="#a56e09" stroke-width="4"/>
+    <path d="M118 208h84l10 48H108z" fill="url(#g2)" stroke="#a56e09" stroke-width="4"/>
+    <rect x="92" y="256" width="136" height="24" rx="8" fill="#d59a1e" stroke="#9c6808" stroke-width="4"/>
+    <ellipse cx="136" cy="110" rx="20" ry="12" fill="#fff6b0" opacity="0.8"/>
+  </g>
+</svg>
