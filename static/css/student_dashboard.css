@@ -438,6 +438,10 @@
 }
 
 .lesson-progress-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 30px;
     height: 30px;
     flex: 0 0 30px;
@@ -467,6 +471,28 @@
 
 .lesson-progress-chip.is-active.is-completed {
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
+}
+
+.lesson-progress-chip.is-practice {
+    border-color: #111111;
+    background: #f0f0f0;
+}
+
+.lesson-progress-chip.is-practice.is-completed {
+    border-color: #111111;
+    background: #67d36f;
+}
+
+.lesson-progress-chip.is-practice::after {
+    content: attr(data-symbol);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    color: #000000;
+}
+
+.lesson-progress-chip.is-practice.is-completed::after {
+    color: #000000;
 }
 
 .lesson-progress-text {
@@ -581,6 +607,104 @@
     color: #334264;
     font-size: 17px;
     line-height: 1.55;
+}
+
+.lesson-section--practice {
+    background: linear-gradient(160deg, rgba(238, 248, 255, 0.96), rgba(255, 247, 229, 0.96));
+    border-color: rgba(62, 110, 192, 0.24);
+}
+
+.practice-drag {
+    margin-top: 10px;
+    display: grid;
+    gap: 12px;
+}
+
+.practice-drag__zone {
+    border: 1px dashed rgba(35, 58, 102, 0.35);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.86);
+    padding: 10px;
+}
+
+.practice-drag__zone--answer {
+    border-color: rgba(76, 175, 80, 0.45);
+    background: rgba(240, 255, 242, 0.88);
+}
+
+.practice-drag__label {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #273965;
+}
+
+.practice-drag__tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 38px;
+}
+
+.practice-drag__token {
+    border: 1px solid rgba(47, 91, 190, 0.32);
+    border-radius: 10px;
+    background: #ffffff;
+    color: #18386f;
+    padding: 6px 10px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: grab;
+    user-select: none;
+}
+
+.practice-drag__token:hover {
+    background: #edf5ff;
+}
+
+.practice-drag__token:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.practice-drag__empty {
+    color: #6f7f9c;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.practice-drag__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.practice-drag__status {
+    min-height: 20px;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.practice-drag__status--success {
+    color: #239048;
+}
+
+.practice-drag__status--error {
+    color: #bb2f45;
+}
+
+.practice-drag__result {
+    margin: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(31, 42, 68, 0.2);
+    background: #10192e;
+    color: #dce8ff;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 14px;
+    line-height: 1.45;
+    padding: 10px 12px;
+    min-height: 42px;
 }
 
 .md-paragraph {

@@ -96,6 +96,8 @@ let currentLessons = [];
 let currentLessonIndex = 0;
 let currentLessonSections = [];
 let currentSectionIndex = 0;
+const stepProgressByStepId = new Map();
+const practiceDragStateByStepId = new Map();
 const lessonsByModule = new Map();
 const moduleLessonTotals = new Map();
 const moduleLessonsLoading = new Set();
@@ -1359,6 +1361,16 @@ async function goToNextSlide() {
         return;
     }
 
+    const lesson = currentLessons[currentLessonIndex];
+    const currentSegment = currentLessonSections[currentSectionIndex];
+    if (!isParentMode && currentSegment?.kind === "practice_drag" && !isLessonSegmentCompleted(lesson?.id, currentSegment, currentSectionIndex)) {
+        const practiceCompleted = await submitPracticeDragStep(lesson, currentSegment);
+        if (!practiceCompleted) {
+            return;
+        }
+        await syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
+    }
+
     if (currentSectionIndex < currentLessonSections.length - 1) {
         currentSectionIndex += 1;
         renderActiveLesson();
@@ -1400,6 +1412,18 @@ lessonListEl.addEventListener("click", (event) => {
 });
 
 lessonContentEl.addEventListener("click", async (event) => {
+    const tokenButton = event.target.closest(".practice-drag__token");
+    if (tokenButton) {
+        const stepId = Number(tokenButton.dataset.stepId);
+        const tokenId = tokenButton.dataset.tokenId;
+        const fromZone = tokenButton.dataset.zone === "answer" ? "answer" : "pool";
+        const toZone = fromZone === "answer" ? "pool" : "answer";
+        if (tokenId && movePracticeToken(stepId, tokenId, fromZone, toZone)) {
+            renderActiveLesson();
+        }
+        return;
+    }
+
     const expandButton = event.target.closest(".md-code-expand");
     if (expandButton) {
         const codeBlock = expandButton.closest(".md-code-block");
@@ -1437,6 +1461,52 @@ lessonContentEl.addEventListener("click", async (event) => {
     }
 });
 
+lessonContentEl.addEventListener("dragstart", (event) => {
+    const tokenButton = event.target.closest(".practice-drag__token");
+    if (!tokenButton || tokenButton.disabled) {
+        return;
+    }
+    const tokenId = tokenButton.dataset.tokenId;
+    const zone = tokenButton.dataset.zone;
+    if (!tokenId || !zone || !event.dataTransfer) {
+        return;
+    }
+    event.dataTransfer.setData("text/plain", `${zone}:${tokenId}`);
+    event.dataTransfer.effectAllowed = "move";
+});
+
+lessonContentEl.addEventListener("dragover", (event) => {
+    const zone = event.target.closest(".practice-drag__zone");
+    if (!zone) {
+        return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+    }
+});
+
+lessonContentEl.addEventListener("drop", (event) => {
+    const zone = event.target.closest(".practice-drag__zone");
+    if (!zone) {
+        return;
+    }
+
+    event.preventDefault();
+    const rawPayload = event.dataTransfer?.getData("text/plain") || "";
+    const [fromZoneRaw, tokenId] = rawPayload.split(":");
+    const fromZone = fromZoneRaw === "answer" ? "answer" : "pool";
+    const toZone = zone.dataset.zone === "answer" ? "answer" : "pool";
+    const stepId = Number(String(tokenId || "").split("-")[0]);
+    if (!tokenId || !Number.isFinite(stepId)) {
+        return;
+    }
+
+    if (movePracticeToken(stepId, tokenId, fromZone, toZone)) {
+        renderActiveLesson();
+    }
+});
+
 async function fetchProfile() {
     const response = await authFetch("/auth/profile/", {
         headers: {
@@ -1466,7 +1536,7 @@ async function fetchModules() {
 }
 
 async function fetchLessons(moduleId) {
-    const response = await fetch(`/auth/courses/modules/${moduleId}/lessons/`, {
+    const response = await authFetch(`/auth/courses/modules/${moduleId}/lessons/`, {
         headers: {
             "Content-Type": "application/json"
         }
@@ -1598,6 +1668,8 @@ function syncProgressState(progressItems) {
     completedLessonIdsByModule.clear();
     rewardedModuleIds.clear();
     viewedSlidesByLessonId.clear();
+    stepProgressByStepId.clear();
+    practiceDragStateByStepId.clear();
 
     (Array.isArray(progressItems) ? progressItems : []).forEach((item) => {
         const lessonId = Number(
@@ -1878,6 +1950,119 @@ function splitBySlideDelimiter(content) {
     return chunks;
 }
 
+function normalizeStepProgress(rawProgress) {
+    return {
+        completed: Boolean(rawProgress?.completed),
+        attempts: Number(rawProgress?.attempts || 0),
+        score: rawProgress?.score ?? null,
+        completedAt: rawProgress?.completed_at || null
+    };
+}
+
+function syncStepProgressFromLessons(lessons) {
+    (Array.isArray(lessons) ? lessons : []).forEach((lesson) => {
+        const stepItems = Array.isArray(lesson?.steps) ? lesson.steps : [];
+        stepItems.forEach((step) => {
+            const stepId = Number(step?.id);
+            if (!Number.isFinite(stepId)) {
+                return;
+            }
+            stepProgressByStepId.set(stepId, normalizeStepProgress(step?.progress));
+        });
+    });
+}
+
+function getStepProgress(stepId) {
+    const normalizedStepId = Number(stepId);
+    if (!Number.isFinite(normalizedStepId)) {
+        return normalizeStepProgress(null);
+    }
+    if (!stepProgressByStepId.has(normalizedStepId)) {
+        stepProgressByStepId.set(normalizedStepId, normalizeStepProgress(null));
+    }
+    return stepProgressByStepId.get(normalizedStepId);
+}
+
+function setStepProgress(stepId, progressPayload) {
+    const normalizedStepId = Number(stepId);
+    if (!Number.isFinite(normalizedStepId)) {
+        return;
+    }
+    stepProgressByStepId.set(normalizedStepId, normalizeStepProgress(progressPayload));
+}
+
+function normalizePracticeTokens(rawValue) {
+    if (!Array.isArray(rawValue)) {
+        return [];
+    }
+    return rawValue
+        .map((item) => String(item || "").trim())
+        .filter((item) => item.length > 0);
+}
+
+function parseLessonSectionsFromSteps(lesson) {
+    const stepItems = Array.isArray(lesson?.steps) ? [...lesson.steps] : [];
+    if (!stepItems.length) {
+        return [];
+    }
+
+    const sortedSteps = stepItems.sort((a, b) => {
+        const left = Number(a?.order ?? 0);
+        const right = Number(b?.order ?? 0);
+        if (left !== right) {
+            return left - right;
+        }
+        return Number(a?.id ?? 0) - Number(b?.id ?? 0);
+    });
+
+    return sortedSteps
+        .map((step, index) => {
+            const stepType = String(step?.step_type || "").trim().toLowerCase();
+            const stepId = Number(step?.id);
+            const title = String(step?.title || `Слайд ${index + 1}`).trim() || `Слайд ${index + 1}`;
+            const content = normalizeLessonText(step?.content || "");
+            const incomingProgress = normalizeStepProgress(step?.progress);
+            const storedProgress = getStepProgress(stepId);
+            const progress = (incomingProgress.completed || incomingProgress.attempts > storedProgress.attempts)
+                ? incomingProgress
+                : storedProgress;
+            setStepProgress(stepId, progress);
+
+            if (stepType === "practice_drag") {
+                return {
+                    kind: "practice_drag",
+                    stepId,
+                    stepType,
+                    order: Number(step?.order ?? index + 1),
+                    title,
+                    text: content,
+                    config: step?.config || {},
+                    progress
+                };
+            }
+
+            return {
+                kind: "theory",
+                stepId,
+                stepType: stepType || "theory",
+                order: Number(step?.order ?? index + 1),
+                title,
+                text: content || "Текст шага пока не добавлен.",
+                config: step?.config || {},
+                progress
+            };
+        })
+        .filter(Boolean);
+}
+
+function parseLessonSectionsFromLesson(lesson) {
+    const sectionsFromSteps = parseLessonSectionsFromSteps(lesson);
+    if (sectionsFromSteps.length) {
+        return sectionsFromSteps;
+    }
+    return parseLessonSections(lesson?.content);
+}
+
 function parseLessonSections(rawContent) {
     const content = normalizeLessonText(rawContent);
     if (!content) {
@@ -1887,6 +2072,7 @@ function parseLessonSections(rawContent) {
     const delimiterChunks = splitBySlideDelimiter(content);
     if (delimiterChunks.length > 1) {
         return delimiterChunks.map((chunk, index) => ({
+            kind: "theory",
             title: `Слайд ${index + 1}`,
             text: chunk
         }));
@@ -1895,13 +2081,19 @@ function parseLessonSections(rawContent) {
     try {
         const parsed = JSON.parse(content);
         if (Array.isArray(parsed)) {
-            const sections = normalizeSectionsFromJson(parsed);
+            const sections = normalizeSectionsFromJson(parsed).map((section) => ({
+                kind: "theory",
+                ...section
+            }));
             if (sections.length) {
                 return sections;
             }
         }
         if (parsed && Array.isArray(parsed.sections)) {
-            const sections = normalizeSectionsFromJson(parsed.sections);
+            const sections = normalizeSectionsFromJson(parsed.sections).map((section) => ({
+                kind: "theory",
+                ...section
+            }));
             if (sections.length) {
                 return sections;
             }
@@ -1921,11 +2113,11 @@ function parseLessonSections(rawContent) {
             const firstLine = lines[0] || "";
             const title = firstLine.replace(/^##\s*/, "").trim() || `Подтема ${index + 1}`;
             const text = lines.slice(1).join("\n").trim();
-            return { title, text };
+            return { kind: "theory", title, text };
         });
     }
 
-    return [{ title: "Описание", text: content }];
+    return [{ kind: "theory", title: "Описание", text: content }];
 }
 
 function renderInlineMarkdown(rawText) {
@@ -2120,6 +2312,326 @@ function getViewedSlidesSet(lessonId) {
     return viewedSlidesByLessonId.get(normalizedLessonId);
 }
 
+function isPracticeStepCompleted(stepId) {
+    const normalizedStepId = Number(stepId);
+    if (!Number.isFinite(normalizedStepId)) {
+        return false;
+    }
+    return Boolean(getStepProgress(normalizedStepId)?.completed);
+}
+
+function isLessonSegmentCompleted(lessonId, segment, index) {
+    const normalizedLessonId = Number(lessonId);
+    if (completedLessonIds.has(normalizedLessonId)) {
+        return true;
+    }
+    if (segment?.kind === "practice_drag") {
+        return isPracticeStepCompleted(segment.stepId);
+    }
+    return getViewedSlidesSet(normalizedLessonId).has(index);
+}
+
+function createPracticeTokenObjects(stepId, tokens) {
+    return tokens.map((text, index) => ({
+        id: `${stepId}-${index}`,
+        text
+    }));
+}
+
+function lockPracticeStateAsCompleted(state, answerTokens) {
+    state.pool = [];
+    state.answer = createPracticeTokenObjects(state.stepId, answerTokens);
+}
+
+function ensurePracticeDragState(segment) {
+    const stepId = Number(segment?.stepId);
+    if (!Number.isFinite(stepId)) {
+        return null;
+    }
+
+    const expectedTokens = normalizePracticeTokens(segment?.config?.answer);
+    let allTokens = normalizePracticeTokens(segment?.config?.tokens);
+    if (!allTokens.length) {
+        allTokens = [...expectedTokens];
+    }
+    if (!expectedTokens.length && !allTokens.length) {
+        return null;
+    }
+
+    expectedTokens.forEach((token) => {
+        if (!allTokens.includes(token)) {
+            allTokens.push(token);
+        }
+    });
+
+    let state = practiceDragStateByStepId.get(stepId);
+    if (!state) {
+        const shuffled = [...allTokens].sort(() => Math.random() - 0.5);
+        state = {
+            stepId,
+            pool: createPracticeTokenObjects(stepId, shuffled),
+            answer: [],
+            statusMessage: "",
+            statusType: "",
+            isSubmitting: false
+        };
+        practiceDragStateByStepId.set(stepId, state);
+    }
+
+    if (isPracticeStepCompleted(stepId)) {
+        lockPracticeStateAsCompleted(state, expectedTokens);
+    }
+
+    return state;
+}
+
+function movePracticeToken(stepId, tokenId, fromZone, toZone) {
+    const normalizedStepId = Number(stepId);
+    if (!Number.isFinite(normalizedStepId)) {
+        return false;
+    }
+    const state = practiceDragStateByStepId.get(normalizedStepId);
+    if (!state || fromZone === toZone) {
+        return false;
+    }
+    if (state.isSubmitting || isPracticeStepCompleted(normalizedStepId)) {
+        return false;
+    }
+
+    const source = fromZone === "answer" ? state.answer : state.pool;
+    const target = toZone === "answer" ? state.answer : state.pool;
+    const tokenIndex = source.findIndex((token) => token.id === tokenId);
+    if (tokenIndex < 0) {
+        return false;
+    }
+
+    const [token] = source.splice(tokenIndex, 1);
+    target.push(token);
+    state.statusMessage = "";
+    state.statusType = "";
+    return true;
+}
+
+async function submitLessonStepAttempt(stepId, payload) {
+    const response = await authFetch(`/auth/courses/steps/${stepId}/submit/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload || {})
+    });
+
+    const responsePayload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const detail = responsePayload?.error || responsePayload?.detail || "Не удалось отправить практику";
+        throw new Error(detail);
+    }
+    return responsePayload;
+}
+
+async function submitPracticeDragStep(lesson, segment) {
+    const stepId = Number(segment?.stepId);
+    if (!Number.isFinite(stepId)) {
+        return false;
+    }
+    const state = ensurePracticeDragState(segment);
+    if (!state || state.isSubmitting) {
+        return false;
+    }
+
+    const answerTokens = state.answer.map((token) => token.text);
+    if (!answerTokens.length) {
+        state.statusMessage = "Сначала собери команду из кусочков.";
+        state.statusType = "error";
+        renderActiveLesson();
+        return false;
+    }
+
+    state.isSubmitting = true;
+    renderActiveLesson();
+
+    try {
+        const payload = await submitLessonStepAttempt(stepId, { answer: answerTokens });
+        setStepProgress(stepId, payload?.progress || null);
+
+        if (payload?.is_correct) {
+            const expectedTokens = normalizePracticeTokens(segment?.config?.answer);
+            lockPracticeStateAsCompleted(state, expectedTokens.length ? expectedTokens : answerTokens);
+            state.statusMessage = payload?.message || "Верно!";
+            state.statusType = "success";
+        } else {
+            state.statusMessage = payload?.message || "Порядок пока неверный.";
+            state.statusType = "error";
+        }
+
+        applyUserXpFromPayload(payload?.user);
+        applyNewAchievements(payload?.new_achievements);
+        renderModulesForActiveLanguage();
+        return Boolean(payload?.is_correct);
+    } catch (error) {
+        state.statusMessage = error?.message || "Ошибка при проверке практики.";
+        state.statusType = "error";
+        return false;
+    } finally {
+        state.isSubmitting = false;
+        renderActiveLesson();
+    }
+}
+
+function renderPracticeDragSegment(lesson, segment) {
+    const state = ensurePracticeDragState(segment);
+    lessonContentEl.innerHTML = "";
+
+    const block = document.createElement("section");
+    block.className = "lesson-section lesson-section--practice";
+
+    const title = document.createElement("h5");
+    title.className = "lesson-section__title";
+    title.textContent = segment?.title || "Практика";
+    block.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "lesson-section__body";
+    if (segment?.text) {
+        body.innerHTML = renderMarkdownToHtml(segment.text);
+    } else {
+        body.innerHTML = "<p class=\"md-paragraph\">Собери команду из кусочков.</p>";
+    }
+    block.appendChild(body);
+
+    if (!state) {
+        const errorNote = document.createElement("p");
+        errorNote.className = "practice-drag__status practice-drag__status--error";
+        errorNote.textContent = "Для этого шага пока не настроены кусочки.";
+        block.appendChild(errorNote);
+        lessonContentEl.appendChild(block);
+        return;
+    }
+
+    const workspace = document.createElement("div");
+    workspace.className = "practice-drag";
+
+    const answerZone = document.createElement("div");
+    answerZone.className = "practice-drag__zone practice-drag__zone--answer";
+    answerZone.dataset.zone = "answer";
+
+    const answerLabel = document.createElement("p");
+    answerLabel.className = "practice-drag__label";
+    answerLabel.textContent = "Твой ответ";
+    answerZone.appendChild(answerLabel);
+
+    const answerTokensWrap = document.createElement("div");
+    answerTokensWrap.className = "practice-drag__tokens";
+    if (!state.answer.length) {
+        const empty = document.createElement("span");
+        empty.className = "practice-drag__empty";
+        empty.textContent = "Перетащи сюда кусочки";
+        answerTokensWrap.appendChild(empty);
+    } else {
+        state.answer.forEach((token) => {
+            const tokenBtn = document.createElement("button");
+            tokenBtn.type = "button";
+            tokenBtn.className = "practice-drag__token";
+            tokenBtn.draggable = true;
+            tokenBtn.dataset.tokenId = token.id;
+            tokenBtn.dataset.zone = "answer";
+            tokenBtn.dataset.stepId = String(state.stepId);
+            tokenBtn.textContent = token.text;
+            if (state.isSubmitting || isPracticeStepCompleted(state.stepId)) {
+                tokenBtn.disabled = true;
+            }
+            answerTokensWrap.appendChild(tokenBtn);
+        });
+    }
+    answerZone.appendChild(answerTokensWrap);
+    workspace.appendChild(answerZone);
+
+    const poolZone = document.createElement("div");
+    poolZone.className = "practice-drag__zone";
+    poolZone.dataset.zone = "pool";
+
+    const poolLabel = document.createElement("p");
+    poolLabel.className = "practice-drag__label";
+    poolLabel.textContent = "Кусочки";
+    poolZone.appendChild(poolLabel);
+
+    const poolTokensWrap = document.createElement("div");
+    poolTokensWrap.className = "practice-drag__tokens";
+    state.pool.forEach((token) => {
+        const tokenBtn = document.createElement("button");
+        tokenBtn.type = "button";
+        tokenBtn.className = "practice-drag__token";
+        tokenBtn.draggable = true;
+        tokenBtn.dataset.tokenId = token.id;
+        tokenBtn.dataset.zone = "pool";
+        tokenBtn.dataset.stepId = String(state.stepId);
+        tokenBtn.textContent = token.text;
+        if (state.isSubmitting || isPracticeStepCompleted(state.stepId)) {
+            tokenBtn.disabled = true;
+        }
+        poolTokensWrap.appendChild(tokenBtn);
+    });
+    poolZone.appendChild(poolTokensWrap);
+    workspace.appendChild(poolZone);
+
+    const actions = document.createElement("div");
+    actions.className = "practice-drag__actions";
+
+    const checkBtn = document.createElement("button");
+    checkBtn.type = "button";
+    checkBtn.className = "btn btn-primary";
+    checkBtn.textContent = "Проверить";
+    checkBtn.disabled = state.isSubmitting || isPracticeStepCompleted(state.stepId);
+    checkBtn.addEventListener("click", () => {
+        void submitPracticeDragStep(lesson, segment);
+    });
+    actions.appendChild(checkBtn);
+
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "btn btn-nav";
+    resetBtn.textContent = "Сбросить";
+    resetBtn.disabled = state.isSubmitting || isPracticeStepCompleted(state.stepId);
+    resetBtn.addEventListener("click", () => {
+        const tokens = [
+            ...state.pool.map((token) => token.text),
+            ...state.answer.map((token) => token.text)
+        ];
+        const shuffled = [...tokens].sort(() => Math.random() - 0.5);
+        state.pool = createPracticeTokenObjects(state.stepId, shuffled);
+        state.answer = [];
+        state.statusMessage = "";
+        state.statusType = "";
+        renderActiveLesson();
+    });
+    actions.appendChild(resetBtn);
+    workspace.appendChild(actions);
+
+    const status = document.createElement("p");
+    status.className = "practice-drag__status";
+    if (state.statusType === "success") {
+        status.classList.add("practice-drag__status--success");
+    }
+    if (state.statusType === "error") {
+        status.classList.add("practice-drag__status--error");
+    }
+    if (isPracticeStepCompleted(state.stepId) && !state.statusMessage) {
+        status.textContent = "Практика выполнена.";
+        status.classList.add("practice-drag__status--success");
+    } else {
+        status.textContent = state.statusMessage || "";
+    }
+    workspace.appendChild(status);
+
+    const assembled = document.createElement("pre");
+    assembled.className = "practice-drag__result";
+    assembled.textContent = state.answer.map((token) => token.text).join("");
+    workspace.appendChild(assembled);
+
+    block.appendChild(workspace);
+    lessonContentEl.appendChild(block);
+}
+
 function renderLessonProgressOverview() {
     if (!lessonProgressTrackEl || !lessonProgressTextEl) {
         return;
@@ -2133,21 +2645,30 @@ function renderLessonProgressOverview() {
         return;
     }
 
-    const viewedSlides = getViewedSlidesSet(currentLesson.id);
-    const viewedCount = viewedSlides.size;
+    let completedCount = 0;
+    currentLessonSections.forEach((segment, index) => {
+        if (isLessonSegmentCompleted(currentLesson.id, segment, index)) {
+            completedCount += 1;
+        }
+    });
     lessonProgressTextEl.textContent = lessonProgressStatusMessage
-        ? `Слайды: ${viewedCount}/${currentLessonSections.length} • ${lessonProgressStatusMessage}`
-        : `Слайды: ${viewedCount}/${currentLessonSections.length}`;
+        ? `Слайды: ${completedCount}/${currentLessonSections.length} • ${lessonProgressStatusMessage}`
+        : `Слайды: ${completedCount}/${currentLessonSections.length}`;
 
-    currentLessonSections.forEach((_, index) => {
+    currentLessonSections.forEach((segment, index) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "lesson-progress-chip";
         chip.dataset.slideIndex = String(index);
-        chip.setAttribute("aria-label", `Слайд ${index + 1}`);
-        chip.title = `Слайд ${index + 1}`;
+        const isPracticeChip = segment?.kind === "practice_drag";
+        chip.setAttribute("aria-label", isPracticeChip ? `Практика ${index + 1}` : `Слайд ${index + 1}`);
+        chip.title = isPracticeChip ? `Практика ${index + 1}` : `Слайд ${index + 1}`;
+        if (isPracticeChip) {
+            chip.classList.add("is-practice");
+            chip.dataset.symbol = ">_.";
+        }
 
-        if (viewedSlides.has(index)) {
+        if (isLessonSegmentCompleted(currentLesson.id, segment, index)) {
             chip.classList.add("is-completed");
         }
         if (index === currentSectionIndex) {
@@ -2386,9 +2907,9 @@ function renderActiveLesson() {
     }
 
     const lesson = currentLessons[currentLessonIndex];
-    currentLessonSections = parseLessonSections(lesson.content);
+    currentLessonSections = parseLessonSectionsFromLesson(lesson);
     if (!currentLessonSections.length) {
-        currentLessonSections = [{ title: "Описание", text: "Текст урока пока не добавлен." }];
+        currentLessonSections = [{ kind: "theory", title: "Описание", text: "Текст урока пока не добавлен." }];
     }
     if (currentSectionIndex >= currentLessonSections.length) {
         currentSectionIndex = currentLessonSections.length - 1;
@@ -2397,37 +2918,45 @@ function renderActiveLesson() {
         currentSectionIndex = 0;
     }
 
+    const currentSegment = currentLessonSections[currentSectionIndex];
+    const isPracticeSegment = currentSegment?.kind === "practice_drag";
     const viewedSlidesSet = getViewedSlidesSet(lesson.id);
-    const wasViewedBefore = viewedSlidesSet.has(currentSectionIndex);
+    const wasViewedBefore = isLessonSegmentCompleted(lesson.id, currentSegment, currentSectionIndex);
     if (completedLessonIds.has(lesson.id)) {
         for (let i = 0; i < currentLessonSections.length; i += 1) {
             viewedSlidesSet.add(i);
         }
     }
-    viewedSlidesSet.add(currentSectionIndex);
-    persistViewedSlidesToStorage();
+    if (!isPracticeSegment) {
+        viewedSlidesSet.add(currentSectionIndex);
+        persistViewedSlidesToStorage();
+    }
 
-    const section = currentLessonSections[currentSectionIndex];
     lessonTitleEl.textContent = lesson.title || "Без названия";
     lessonCounterEl.textContent = `Урок ${currentLessonIndex + 1} из ${currentLessons.length} | Слайд ${currentSectionIndex + 1} из ${currentLessonSections.length}`;
-    renderLessonContent([section], lesson.video_url);
+    if (isPracticeSegment) {
+        renderPracticeDragSegment(lesson, currentSegment);
+    } else {
+        renderLessonContent([currentSegment], lesson.video_url);
+    }
 
     const isFirstSlide = currentLessonIndex === 0 && currentSectionIndex === 0;
     const isLastSlide =
         currentLessonIndex === currentLessons.length - 1 &&
         currentSectionIndex === currentLessonSections.length - 1;
+    const practiceCompleted = isPracticeSegment && isLessonSegmentCompleted(lesson.id, currentSegment, currentSectionIndex);
     lessonPrevBtn.disabled = isFirstSlide;
     lessonNextBtn.disabled = false;
-    lessonNextBtn.textContent = isLastSlide ? "Завершить" : "Далее";
+    if (isPracticeSegment && !practiceCompleted) {
+        lessonNextBtn.textContent = isLastSlide ? "Проверить" : "Проверить и далее";
+    } else {
+        lessonNextBtn.textContent = isLastSlide ? "Завершить" : "Далее";
+    }
     renderLessonList();
     renderLessonProgressOverview();
 
-    if (!wasViewedBefore && !completedLessonIds.has(lesson.id)) {
+    if (!isPracticeSegment && !wasViewedBefore && !completedLessonIds.has(lesson.id)) {
         void syncCurrentSlideProgress(lesson, currentSectionIndex, currentLessonSections.length);
-    }
-
-    if (currentSectionIndex === currentLessonSections.length - 1 && !completedLessonIds.has(lesson.id)) {
-        void completeCurrentLessonIfNeeded();
     }
 }
 
@@ -2515,6 +3044,7 @@ async function selectModule(moduleId, moduleName) {
         currentLessons = [...(lessonsByModule.get(moduleId) || [])].sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0)
         );
+        syncStepProgressFromLessons(currentLessons);
         moduleLessonTotals.set(moduleId, currentLessons.length);
         currentLessonIndex = 0;
         currentSectionIndex = 0;

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 
-from .models import Achievement, Lesson, UserAchievement, UserProgress
+from .models import Achievement, Lesson, LessonStep, UserAchievement, UserProgress
 
 
 SLIDE_XP = 10
@@ -40,6 +40,10 @@ def split_lesson_sections(raw_content):
 
 
 def lesson_slides_count(lesson):
+    steps_count = LessonStep.objects.filter(lesson=lesson).count()
+    if steps_count > 0:
+        return steps_count
+
     sections = split_lesson_sections(lesson.content)
     return max(1, len(sections))
 

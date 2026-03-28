@@ -11,13 +11,53 @@ class ModuleSerializer(serializers.ModelSerializer):
 
 class LessonSerializer(serializers.ModelSerializer):
     module = ModuleSerializer(read_only=True)
+    steps = serializers.SerializerMethodField(read_only=True)
     module_id = serializers.PrimaryKeyRelatedField(
         queryset = Module.objects.all(), source ='module', write_only=True
     )
+
+    def get_steps(self, obj):
+        step_items = obj.steps.all().order_by('order', 'id')
+        progress_map = {}
+        request = self.context.get("request")
+        if request and getattr(request, "user", None) and request.user.is_authenticated:
+            progress_map = {
+                item.step_id: item
+                for item in UserStepProgress.objects.filter(
+                    user=request.user,
+                    step__in=step_items,
+                )
+            }
+        serialized = []
+        for step in step_items:
+            step_progress = progress_map.get(step.id)
+            serialized.append(
+                {
+                    "id": step.id,
+                    "order": step.order,
+                    "step_type": step.step_type,
+                    "title": step.title,
+                    "content": step.content,
+                    "config": step.config,
+                    "xp_reward": step.xp_reward,
+                    "is_required": step.is_required,
+                    "progress": {
+                        "completed": bool(step_progress.completed) if step_progress else False,
+                        "attempts": int(step_progress.attempts or 0) if step_progress else 0,
+                        "score": step_progress.score if step_progress else None,
+                        "completed_at": (
+                            step_progress.completed_at.isoformat()
+                            if step_progress and step_progress.completed_at
+                            else None
+                        ),
+                    },
+                }
+            )
+        return serialized
     
     class Meta:
         model = Lesson
-        fields=['id','module','module_id', 'title', 'content', 'order', 'video_url']
+        fields=['id','module','module_id', 'title', 'content', 'order', 'video_url', 'steps']
 
 class UserProgressSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.username')

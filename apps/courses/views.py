@@ -49,11 +49,11 @@ class LessonListView(generics.ListAPIView):
 
     def get_queryset(self):
         module_id = self.kwargs["module_id"]
-        return Lesson.objects.filter(module_id=module_id).order_by("order")
+        return Lesson.objects.filter(module_id=module_id).prefetch_related("steps").order_by("order")
 
 
 class LessonDetailView(generics.RetrieveAPIView):
-    queryset = Lesson.objects.all()
+    queryset = Lesson.objects.all().prefetch_related("steps")
     serializer_class = LessonSerializer
     permission_classes = [AllowAny]
 
@@ -95,7 +95,10 @@ class SubmitLessonStepAttemptView(APIView):
         return normalized
 
     def _sync_lesson_completion_from_steps(self, user, lesson):
-        required_steps = LessonStep.objects.filter(lesson=lesson, is_required=True)
+        required_steps = LessonStep.objects.filter(
+            lesson=lesson,
+            is_required=True,
+        ).exclude(step_type=LessonStep.STEP_TYPE_THEORY)
         required_total = required_steps.count()
         if required_total <= 0:
             return False
@@ -115,8 +118,12 @@ class SubmitLessonStepAttemptView(APIView):
 
         progress = UserProgress.objects.filter(user=user, lesson=lesson).order_by("id").first()
         if progress is None:
-            progress = UserProgress.objects.create(user=user, module=lesson.module, lesson=lesson, completed=True)
-            return True
+            progress = UserProgress.objects.create(user=user, module=lesson.module, lesson=lesson, completed=False)
+
+        # Завершение шага практики должно происходить после прохождения всех шагов урока.
+        total_lesson_steps = lesson_slides_count(lesson)
+        if int(progress.slides_completed or 0) < total_lesson_steps:
+            return False
 
         update_fields = []
         if progress.module_id != lesson.module_id:
@@ -351,7 +358,32 @@ class ProgressSlidesBulkSyncView(APIView):
                     progress.slides_completed = slides_completed
                     update_fields.append("slides_completed")
 
-                if (not progress.completed) and slides_completed >= total_slides:
+                required_non_theory_steps = LessonStep.objects.filter(
+                    lesson=lesson,
+                    is_required=True,
+                ).exclude(step_type=LessonStep.STEP_TYPE_THEORY)
+                required_non_theory_total = required_non_theory_steps.count()
+                required_non_theory_completed = 0
+                if required_non_theory_total > 0:
+                    required_non_theory_completed = (
+                        UserStepProgress.objects.filter(
+                            user=request.user,
+                            step__in=required_non_theory_steps,
+                            completed=True,
+                        )
+                        .values("step_id")
+                        .distinct()
+                        .count()
+                    )
+
+                if (
+                    (not progress.completed)
+                    and slides_completed >= total_slides
+                    and (
+                        required_non_theory_total == 0
+                        or required_non_theory_completed >= required_non_theory_total
+                    )
+                ):
                     progress.completed = True
                     update_fields.append("completed")
 
@@ -586,8 +618,29 @@ class CompleteLessonView(APIView):
             progress.slides_completed = slides_completed
             update_fields.append("slides_completed")
 
+        required_non_theory_steps = LessonStep.objects.filter(
+            lesson=lesson,
+            is_required=True,
+        ).exclude(step_type=LessonStep.STEP_TYPE_THEORY)
+        required_non_theory_total = required_non_theory_steps.count()
+        required_non_theory_completed = 0
+        if required_non_theory_total > 0:
+            required_non_theory_completed = (
+                UserStepProgress.objects.filter(
+                    user=request.user,
+                    step__in=required_non_theory_steps,
+                    completed=True,
+                )
+                .values("step_id")
+                .distinct()
+                .count()
+            )
+
         lesson_completed_before = progress.completed
-        if (not progress.completed) and slides_completed >= total_slides:
+        can_complete_from_slides = slides_completed >= total_slides and (
+            required_non_theory_total == 0 or required_non_theory_completed >= required_non_theory_total
+        )
+        if (not progress.completed) and can_complete_from_slides:
             progress.completed = True
             update_fields.append("completed")
 
