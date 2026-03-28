@@ -13,14 +13,16 @@ docker compose up -d --build
 
 Все настройки выставлены в DEBUG режиме!
 **Не забудьте изменить их перед выкладкой в продакшн!**
+
 ## **НАСТРОЙКИ ДЛЯ PROD**
-**.env :**
+
+### **.env :**
 DEBUG=0 (сейчас DEBUG=1)
 SECRET_KEY = <длинный случайный ключ> (не dev-secret)
 ALLOWEDHOSTS = your-domain.com,www.your-domain.com
 POSTGRES/DB_ (не user/pass123)
 
-**Django security в config/settings.py**
+### **Django security в config/settings.py**
 
 CSRF_COOKIE_SECURE = True       (сейчас False)
 SESSION_COOKIE_SECURE = True    (сейчас False)
@@ -31,15 +33,16 @@ SECURE_HSTS_PRELOAD = True             (сейчас False)
 #CSRF_TRUSTED_ORIGINS = ["https://your-domain.com/"] - раскомментировать, вставить свой домен
 CORS_ALLOWED_ORIGINS   -    заменить с localhost на ваш frontend-домен.
 
-**docker-compose.yml**
+### **docker-compose.yml**
+
 Заменить runserver на gunicorn
 
-**Перед стартом делать collectstatic**
+### **Перед стартом делать collectstatic**
 
-**config/local.py**
+### **config/local.py**
 DEBUG=True и ALLOWED_HOSTS=["*"] не использовать.
 
-**docker-compose.yml**
+### **docker-compose.yml**
   ports: - "5433:5432"  -убрать
 ## Для импорта тестовых данных в бд:
 
